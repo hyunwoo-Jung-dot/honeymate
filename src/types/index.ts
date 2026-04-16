@@ -64,6 +64,7 @@ export interface Profile {
   server_name: string | null;
   character_class: CharacterClass | null;
   growth_score: number;
+  is_awakened: boolean;
   guild_id: string;
   is_active: boolean;
   created_at: string;
@@ -166,6 +167,27 @@ export interface ItemRegistry {
   name: string;
   grade: string | null;
   gold_value: number;
+  guild_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Notice {
+  id: string;
+  guild_id: string;
+  title: string;
+  content: string;
+  is_pinned: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BossRegistry {
+  id: string;
+  name: string;
+  content_type: string | null;
   guild_id: string;
   is_active: boolean;
   created_at: string;

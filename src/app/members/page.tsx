@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus,
   Upload,
@@ -295,6 +296,11 @@ export default function MembersPage() {
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">
                     {m.nickname}
+                    {m.is_awakened && (
+                      <Badge className="ml-1 bg-amber-500 text-white text-[10px] px-1.5 py-0">
+                        각성
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {m.character_class ? (
@@ -365,6 +371,9 @@ function MemberForm({
   const [combatPower, setCombatPower] = useState(
     member?.growth_score?.toString() ?? ""
   );
+  const [isAwakened, setIsAwakened] = useState(
+    member?.is_awakened ?? false
+  );
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -380,6 +389,7 @@ function MemberForm({
       server_name: null,
       character_class: charClass || null,
       growth_score: parseInt(combatPower) || 0,
+      is_awakened: isAwakened,
       guild_id: GUILD_ID_PLACEHOLDER,
     };
 
@@ -440,6 +450,13 @@ function MemberForm({
           onChange={(e) => setCombatPower(e.target.value)}
           placeholder="0"
         />
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox
+          checked={isAwakened}
+          onCheckedChange={(v) => setIsAwakened(v === true)}
+        />
+        <Label>각성 여부</Label>
       </div>
       <Button type="submit" className="w-full" disabled={saving}>
         {saving

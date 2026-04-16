@@ -10,6 +10,7 @@ import {
   Shield,
   Package,
   UsersRound,
+  Megaphone,
 } from "lucide-react";
 import {
   Sheet,
@@ -26,7 +27,8 @@ const navItems = [
   { href: "/events", label: "참석관리", icon: Calendar },
   { href: "/lottery", label: "뽑기", icon: Ticket },
   { href: "/party", label: "파티편성", icon: UsersRound },
-  { href: "/items", label: "아이템", icon: Package },
+  { href: "/items", label: "관리", icon: Package },
+  { href: "/notices", label: "공지", icon: Megaphone },
   { href: "/stats", label: "통계", icon: BarChart3 },
 ];
 

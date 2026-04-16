@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSeason } from "@/hooks/useSeason";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { GuildEvent, ContentType } from "@/types";
+import type { GuildEvent, ContentType, BossRegistry } from "@/types";
 import {
   CONTENT_TYPE_LABELS,
   CONTENT_TYPE_COLORS,
@@ -61,6 +61,9 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear().toString());
+  const [month, setMonth] = useState((now.getMonth() + 1).toString());
 
   const handleDeleteEvent = async (e: React.MouseEvent, id: string, title: string) => {
     e.preventDefault();
@@ -84,11 +87,19 @@ export default function EventsPage() {
     if (filter !== "all") {
       query = query.eq("content_type", filter);
     }
+    // Year/month filter
+    const y = parseInt(year);
+    const m = parseInt(month);
+    if (y && m) {
+      const start = new Date(y, m - 1, 1).toISOString();
+      const end = new Date(y, m, 1).toISOString();
+      query = query.gte("scheduled_at", start).lt("scheduled_at", end);
+    }
 
     const { data } = await query;
     setEvents(data ?? []);
     setLoading(false);
-  }, [supabase, filter, activeSeason]);
+  }, [supabase, filter, activeSeason, year, month]);
 
   useEffect(() => {
     fetchEvents();
@@ -101,12 +112,12 @@ export default function EventsPage() {
           <h1 className="text-2xl font-bold tracking-tight">
             참석 관리
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap mt-1">
             <span className="text-sm text-muted-foreground">시즌</span>
             <Input
               type="number"
               min={1}
-              className="w-20 h-8 text-sm"
+              className="w-16 h-8 text-sm"
               value={activeSeason?.name?.replace(/[^0-9]/g, "") ?? "1"}
               onChange={(e) => {
                 const name = `시즌 ${e.target.value}`;
@@ -114,6 +125,26 @@ export default function EventsPage() {
                 if (s) setActiveSeason(s);
               }}
             />
+            <Input
+              type="number"
+              min={2024}
+              max={2099}
+              className="w-20 h-8 text-sm"
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              placeholder="년"
+            />
+            <span className="text-sm text-muted-foreground">년</span>
+            <Input
+              type="number"
+              min={1}
+              max={12}
+              className="w-14 h-8 text-sm"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              placeholder="월"
+            />
+            <span className="text-sm text-muted-foreground">월</span>
           </div>
         </div>
         <AdminGuard>
@@ -278,6 +309,16 @@ function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
   const [title, setTitle] = useState("");
   const [difficulty, setDifficulty] = useState("");
   const [bossName, setBossName] = useState("");
+  const [bossList, setBossList] = useState<BossRegistry[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("boss_registry")
+      .select("*")
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => setBossList(data ?? []));
+  }, [supabase]);
   const [scheduledAt, setScheduledAt] = useState(
     format(new Date(), "yyyy-MM-dd'T'HH:mm")
   );
@@ -385,11 +426,24 @@ function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
         </div>
         <div className="space-y-2">
           <Label>보스명</Label>
-          <Input
-            value={bossName}
-            onChange={(e) => setBossName(e.target.value)}
-            placeholder="오그론, 코드쉬 등"
-          />
+          <Select value={bossName} onValueChange={(v) => setBossName(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue>{bossName || "선택"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {bossList
+                .filter(
+                  (b) =>
+                    !b.content_type ||
+                    b.content_type === contentType
+                )
+                .map((b) => (
+                  <SelectItem key={b.id} value={b.name}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="space-y-2">
