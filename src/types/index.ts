@@ -161,6 +161,17 @@ export interface LotteryItemValue {
   goldValue: number;
 }
 
+export interface ItemRegistry {
+  id: string;
+  name: string;
+  grade: string | null;
+  gold_value: number;
+  guild_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface GuildSettings {
   id: string;
   guild_id: string;

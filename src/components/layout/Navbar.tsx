@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   Shield,
+  Package,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/members", label: "길드원", icon: Users },
   { href: "/events", label: "참석관리", icon: Calendar },
   { href: "/lottery", label: "뽑기", icon: Ticket },
+  { href: "/items", label: "아이템", icon: Package },
   { href: "/stats", label: "통계", icon: BarChart3 },
 ];
 
