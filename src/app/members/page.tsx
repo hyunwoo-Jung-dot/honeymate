@@ -244,9 +244,6 @@ export default function MembersPage() {
                 <TableHead className="hidden sm:table-cell">
                   성장도
                 </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  서버
-                </TableHead>
                 {isAdmin && (
                   <TableHead className="w-20">관리</TableHead>
                 )}
@@ -271,9 +268,6 @@ export default function MembersPage() {
                     {m.growth_score > 0
                       ? m.growth_score.toLocaleString()
                       : "-"}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {m.server_name || "-"}
                   </TableCell>
                   {isAdmin && (
                     <TableCell>
