@@ -102,24 +102,18 @@ export default function EventsPage() {
             참석 관리
           </h1>
           <div className="flex items-center gap-2">
-            {seasons.length > 0 && (
-              <Select
-                value={activeSeason?.id ?? ""}
-                onValueChange={(v) => {
-                  const s = seasons.find((s) => s.id === v);
-                  if (s) setActiveSeason(s);
-                }}
-              >
-                <SelectTrigger className="w-36 h-8 text-xs">
-                  <SelectValue>{activeSeason?.name ?? "시즌 선택"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {seasons.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <span className="text-sm text-muted-foreground">시즌</span>
+            <Input
+              type="number"
+              min={1}
+              className="w-20 h-8 text-sm"
+              value={activeSeason?.name?.replace(/[^0-9]/g, "") ?? "1"}
+              onChange={(e) => {
+                const name = `시즌 ${e.target.value}`;
+                const s = seasons.find((s) => s.name === name);
+                if (s) setActiveSeason(s);
+              }}
+            />
           </div>
         </div>
         <AdminGuard>
@@ -252,7 +246,8 @@ function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
   onSaved: () => void;
 }) {
   const [supabase] = useState(() => createClient());
-  const [selectedSeasonId, setSelectedSeasonId] = useState(seasonId ?? "");
+  const currentSeasonNum = seasons.find((s) => s.id === seasonId)?.name?.replace(/[^0-9]/g, "") ?? "1";
+  const [seasonNum, setSeasonNum] = useState(currentSeasonNum);
   const [contentType, setContentType] =
     useState<ContentType>("guild_dungeon");
   const [title, setTitle] = useState("");
@@ -271,9 +266,24 @@ function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
     }
     setSaving(true);
 
+    // Find or create season
+    const seasonName = `시즌 ${seasonNum}`;
+    let resolvedSeasonId: string | null = null;
+    const existing = seasons.find((s) => s.name === seasonName);
+    if (existing) {
+      resolvedSeasonId = existing.id;
+    } else if (seasonNum) {
+      const { data: newSeason } = await supabase
+        .from("seasons")
+        .insert({ name: seasonName, start_date: new Date().toISOString().slice(0, 10), is_active: true, guild_id: GUILD_ID })
+        .select()
+        .single();
+      if (newSeason) resolvedSeasonId = newSeason.id;
+    }
+
     const { error } = await supabase.from("events").insert({
       guild_id: GUILD_ID,
-      season_id: selectedSeasonId || null,
+      season_id: resolvedSeasonId,
       content_type: contentType,
       title: title.trim(),
       difficulty: difficulty || null,
@@ -293,26 +303,16 @@ function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {seasons.length > 0 && (
-        <div className="space-y-2">
-          <Label>시즌 *</Label>
-          <Select
-            value={selectedSeasonId}
-            onValueChange={(v) => v && setSelectedSeasonId(v)}
-          >
-            <SelectTrigger>
-              <SelectValue>
-                {seasons.find((s) => s.id === selectedSeasonId)?.name ?? "시즌 선택"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {seasons.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      <div className="space-y-2">
+        <Label>시즌 *</Label>
+        <Input
+          type="number"
+          min={1}
+          value={seasonNum}
+          onChange={(e) => setSeasonNum(e.target.value)}
+          placeholder="1"
+        />
+      </div>
       <div className="space-y-2">
         <Label>컨텐츠 타입 *</Label>
         <Select
