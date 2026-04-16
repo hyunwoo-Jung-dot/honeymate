@@ -111,7 +111,7 @@ export default function MembersPage() {
       server_name: row["서버"] || row["server_name"] || null,
       character_class:
         row["직업"] || row["class"] || row["character_class"] || null,
-      combat_power: parseInt(row["전투력"] || row["combat_power"] || "0") || 0,
+      growth_score: parseInt(row["성장도"] || row["전투력"] || row["growth_score"] || "0") || 0,
       guild_id: GUILD_ID_PLACEHOLDER,
       is_active: true,
     })).filter((p) => p.nickname);
@@ -242,7 +242,7 @@ export default function MembersPage() {
                   직업
                 </TableHead>
                 <TableHead className="hidden sm:table-cell">
-                  전투력
+                  성장도
                 </TableHead>
                 <TableHead className="hidden md:table-cell">
                   서버
@@ -268,8 +268,8 @@ export default function MembersPage() {
                     )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {m.combat_power > 0
-                      ? m.combat_power.toLocaleString()
+                    {m.growth_score > 0
+                      ? m.growth_score.toLocaleString()
                       : "-"}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
@@ -331,7 +331,7 @@ function MemberForm({
     member?.character_class ?? ""
   );
   const [combatPower, setCombatPower] = useState(
-    member?.combat_power?.toString() ?? ""
+    member?.growth_score?.toString() ?? ""
   );
   const [saving, setSaving] = useState(false);
 
@@ -347,7 +347,7 @@ function MemberForm({
       nickname: nickname.trim(),
       server_name: serverName.trim() || null,
       character_class: charClass || null,
-      combat_power: parseInt(combatPower) || 0,
+      growth_score: parseInt(combatPower) || 0,
       guild_id: GUILD_ID_PLACEHOLDER,
     };
 
@@ -388,15 +388,18 @@ function MemberForm({
             <SelectValue placeholder="선택" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="warrior">전사</SelectItem>
+            <SelectItem value="archer">활</SelectItem>
+            <SelectItem value="healer">힐러</SelectItem>
             <SelectItem value="swordsman">쌍검</SelectItem>
-            <SelectItem value="mage">마법사</SelectItem>
-            <SelectItem value="archer">궁수</SelectItem>
+            <SelectItem value="lancer">창</SelectItem>
+            <SelectItem value="gunner">화포</SelectItem>
+            <SelectItem value="rapier">레이피어</SelectItem>
+            <SelectItem value="sword">한손검</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>전투력</Label>
+        <Label>성장도</Label>
         <Input
           type="number"
           value={combatPower}

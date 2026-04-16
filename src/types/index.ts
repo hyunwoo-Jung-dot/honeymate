@@ -21,10 +21,15 @@ export type EventStatus = "scheduled" | "in_progress" | "completed";
 export type AdminRole = "owner" | "officer";
 
 export type CharacterClass =
-  | "warrior"
+  | "archer"
+  | "healer"
   | "swordsman"
-  | "mage"
-  | "archer";
+  | "lancer"
+  | "gunner"
+  | "rapier"
+  | "sword"
+  | "warrior"
+  | "mage";
 
 export interface Guild {
   id: string;
@@ -46,7 +51,7 @@ export interface Profile {
   nickname: string;
   server_name: string | null;
   character_class: CharacterClass | null;
-  combat_power: number;
+  growth_score: number;
   guild_id: string;
   is_active: boolean;
   created_at: string;

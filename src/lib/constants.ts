@@ -31,10 +31,15 @@ export const ATTENDANCE_STATUS_COLORS = {
 } as const;
 
 export const CLASS_LABELS: Record<CharacterClass, string> = {
-  warrior: "전사",
+  archer: "활",
+  healer: "힐러",
   swordsman: "쌍검",
+  lancer: "창",
+  gunner: "화포",
+  rapier: "레이피어",
+  sword: "한손검",
+  warrior: "전사",
   mage: "마법사",
-  archer: "궁수",
 };
 
 export const ITEM_GRADES = [
