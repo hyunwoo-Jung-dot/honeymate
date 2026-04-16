@@ -51,9 +51,11 @@ export const ITEM_GRADES = [
 ] as const;
 
 export const DIFFICULTY_LEVELS = [
+  "없음",
   "초급",
   "중급",
   "상급",
+  "특급",
 ] as const;
 
 // Attendance weight for cutline calculation

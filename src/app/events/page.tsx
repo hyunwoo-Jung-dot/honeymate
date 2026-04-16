@@ -350,9 +350,11 @@ function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
               <SelectValue placeholder="선택" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="없음">없음</SelectItem>
               <SelectItem value="초급">초급</SelectItem>
               <SelectItem value="중급">중급</SelectItem>
               <SelectItem value="상급">상급</SelectItem>
+              <SelectItem value="특급">특급</SelectItem>
             </SelectContent>
           </Select>
         </div>
