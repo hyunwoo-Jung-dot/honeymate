@@ -28,8 +28,8 @@ const quickLinks = [
   },
   {
     href: "/events",
-    label: "이벤트 관리",
-    description: "컨텐츠별 이벤트 생성 및 참석 체크",
+    label: "참석 관리",
+    description: "컨텐츠별 참석 체크 및 관리",
     icon: Calendar,
     color: "text-green-500",
   },

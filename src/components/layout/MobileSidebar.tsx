@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "대시보드", icon: BarChart3 },
   { href: "/members", label: "길드원", icon: Users },
-  { href: "/events", label: "이벤트", icon: Calendar },
+  { href: "/events", label: "참석관리", icon: Calendar },
   { href: "/lottery", label: "뽑기", icon: Ticket },
   { href: "/stats", label: "통계", icon: BarChart3 },
 ];

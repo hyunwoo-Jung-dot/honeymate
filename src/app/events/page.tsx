@@ -99,7 +99,7 @@ export default function EventsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            이벤트 관리
+            참석 관리
           </h1>
           <div className="flex items-center gap-2">
             {seasons.length > 0 && (
@@ -127,15 +127,21 @@ export default function EventsPage() {
             <DialogTrigger>
               <Button size="sm">
                 <Plus className="h-4 w-4 mr-1" />
-                이벤트 생성
+                생성
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>이벤트 생성</DialogTitle>
+                <DialogTitle>참석 관리 생성</DialogTitle>
               </DialogHeader>
               <EventForm
                 seasonId={activeSeason?.id}
+                seasonName={activeSeason?.name}
+                seasons={seasons}
+                onSeasonChange={(id) => {
+                  const s = seasons.find((s) => s.id === id);
+                  if (s) setActiveSeason(s);
+                }}
                 onSaved={() => {
                   setDialogOpen(false);
                   fetchEvents();
@@ -238,8 +244,15 @@ export default function EventsPage() {
 }
 
 // ---- Event Form ----
-function EventForm({ seasonId, onSaved }: { seasonId?: string; onSaved: () => void }) {
+function EventForm({ seasonId, seasonName, seasons, onSeasonChange, onSaved }: {
+  seasonId?: string;
+  seasonName?: string;
+  seasons: { id: string; name: string }[];
+  onSeasonChange: (id: string) => void;
+  onSaved: () => void;
+}) {
   const [supabase] = useState(() => createClient());
+  const [selectedSeasonId, setSelectedSeasonId] = useState(seasonId ?? "");
   const [contentType, setContentType] =
     useState<ContentType>("guild_dungeon");
   const [title, setTitle] = useState("");
@@ -260,7 +273,7 @@ function EventForm({ seasonId, onSaved }: { seasonId?: string; onSaved: () => vo
 
     const { error } = await supabase.from("events").insert({
       guild_id: GUILD_ID,
-      season_id: seasonId || null,
+      season_id: selectedSeasonId || null,
       content_type: contentType,
       title: title.trim(),
       difficulty: difficulty || null,
@@ -272,7 +285,7 @@ function EventForm({ seasonId, onSaved }: { seasonId?: string; onSaved: () => vo
     if (error) {
       toast.error("생성 실패: " + error.message);
     } else {
-      toast.success("이벤트 생성됨");
+      toast.success("생성됨");
       onSaved();
     }
     setSaving(false);
@@ -280,6 +293,26 @@ function EventForm({ seasonId, onSaved }: { seasonId?: string; onSaved: () => vo
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {seasons.length > 0 && (
+        <div className="space-y-2">
+          <Label>시즌 *</Label>
+          <Select
+            value={selectedSeasonId}
+            onValueChange={(v) => v && setSelectedSeasonId(v)}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                {seasons.find((s) => s.id === selectedSeasonId)?.name ?? "시즌 선택"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {seasons.map((s) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="space-y-2">
         <Label>컨텐츠 타입 *</Label>
         <Select

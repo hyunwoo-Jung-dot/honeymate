@@ -247,7 +247,7 @@ export default function EventDetailPage() {
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4 mr-1" />
-        이벤트 목록
+        참석관리 목록
       </Link>
 
       <Card>
