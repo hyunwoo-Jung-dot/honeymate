@@ -333,7 +333,7 @@ export default function LotteryDetailPage() {
               <TableBody>
                 {(() => {
                   const results = lottery.result as LotteryResult[];
-                  const winnerIds = new Set(results.map((r) => r.participant_id));
+                  const winnerIds = new Set(results.map((r) => r.participantId));
                   const participants = lottery.participants as string[];
                   const losers = participants.filter((id) => !winnerIds.has(id));
                   return (
@@ -342,7 +342,7 @@ export default function LotteryDetailPage() {
                         <TableRow key={i}>
                           <TableCell>{i + 1}</TableCell>
                           <TableCell className="font-medium">
-                            {getNickname(r.participant_id)}
+                            {getNickname(r.participantId)}
                           </TableCell>
                           <TableCell>
                             <Badge className="bg-yellow-500 text-black">{r.item}</Badge>

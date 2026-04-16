@@ -125,7 +125,7 @@ export interface Lottery {
 }
 
 export interface LotteryResult {
-  participant_id: string;
+  participantId: string;
   item: string;
 }
 
