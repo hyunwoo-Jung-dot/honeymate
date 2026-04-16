@@ -1,65 +1,118 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useAuth } from "@/hooks/useAuth";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users,
+  Calendar,
+  Ticket,
+  BarChart3,
+  Shield,
+} from "lucide-react";
+import Link from "next/link";
+
+const quickLinks = [
+  {
+    href: "/members",
+    label: "길드원 관리",
+    description: "길드원 등록, 수정, 엑셀 업로드",
+    icon: Users,
+    color: "text-blue-500",
+  },
+  {
+    href: "/events",
+    label: "이벤트 관리",
+    description: "컨텐츠별 이벤트 생성 및 참석 체크",
+    icon: Calendar,
+    color: "text-green-500",
+  },
+  {
+    href: "/lottery",
+    label: "뽑기 / 사다리",
+    description: "공정한 아이템 분배",
+    icon: Ticket,
+    color: "text-purple-500",
+  },
+  {
+    href: "/stats",
+    label: "참석률 통계",
+    description: "컨텐츠별 참석률 차트 및 컷라인",
+    icon: BarChart3,
+    color: "text-orange-500",
+  },
+];
+
+export default function Dashboard() {
+  const { isAdmin, loading } = useAuth();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Shield className="h-8 w-8 text-primary" />
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">
+            꿀메이트
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="text-muted-foreground">
+            나이트크로우 길드 관리
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        {!loading && (
+          <Badge
+            variant={isAdmin ? "default" : "secondary"}
+            className="ml-auto"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+            {isAdmin ? "운영진 모드" : "열람 모드"}
+          </Badge>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {quickLinks.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link key={item.href} href={item.href}>
+              <Card className="h-full transition-colors hover:bg-accent/50 cursor-pointer">
+                <CardHeader className="pb-2">
+                  <Icon className={`h-8 w-8 ${item.color}`} />
+                  <CardTitle className="text-base">
+                    {item.label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>
+                    {item.description}
+                  </CardDescription>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
+      </div>
+
+      {!isAdmin && !loading && (
+        <Card className="border-dashed">
+          <CardContent className="py-6 text-center text-muted-foreground">
+            <p>
+              현재 열람 모드입니다. 데이터를 수정하려면{" "}
+              <Link
+                href="/login"
+                className="text-primary underline"
+              >
+                운영진 로그인
+              </Link>
+              이 필요합니다.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
