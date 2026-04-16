@@ -9,6 +9,7 @@ import {
   BarChart3,
   Shield,
   Package,
+  UsersRound,
 } from "lucide-react";
 import {
   Sheet,
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/members", label: "길드원", icon: Users },
   { href: "/events", label: "참석관리", icon: Calendar },
   { href: "/lottery", label: "뽑기", icon: Ticket },
+  { href: "/party", label: "파티편성", icon: UsersRound },
   { href: "/items", label: "아이템", icon: Package },
   { href: "/stats", label: "통계", icon: BarChart3 },
 ];
