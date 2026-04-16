@@ -86,6 +86,9 @@ export default function NewLotteryPage() {
   >([{ name: "", goldValue: "" }]);
 
   // Contribution settings
+  const [contribSeasonNum, setContribSeasonNum] = useState(
+    activeSeason?.name?.replace(/[^0-9]/g, "") ?? "1"
+  );
   const [contribContentType, setContribContentType] =
     useState<string>("all");
   const [healerBonusEnabled, setHealerBonusEnabled] =
@@ -109,16 +112,20 @@ export default function NewLotteryPage() {
     setMembers(data ?? []);
   }, [supabase]);
 
+  const contribSeason = seasons.find(
+    (s) => s.name === `시즌 ${contribSeasonNum}`
+  );
+
   const fetchContribScores = useCallback(async () => {
     let query = supabase
       .from("contribution_scores")
       .select("*");
-    if (activeSeason) {
-      query = query.eq("season_id", activeSeason.id);
+    if (contribSeason) {
+      query = query.eq("season_id", contribSeason.id);
     }
     const { data } = await query;
     setContribScores(data ?? []);
-  }, [supabase, activeSeason]);
+  }, [supabase, contribSeason]);
 
   const fetchSettings = useCallback(async () => {
     const { data } = await supabase
@@ -257,7 +264,7 @@ export default function NewLotteryPage() {
           revealed_at: new Date().toISOString(),
           status: "revealed",
           weight_mode: weightMode,
-          weight_season_id: activeSeason?.id ?? null,
+          weight_season_id: contribSeason?.id ?? null,
           weight_content_type:
             contribContentType === "all"
               ? null
@@ -302,7 +309,7 @@ export default function NewLotteryPage() {
           revealed_at: new Date().toISOString(),
           status: "revealed",
           weight_mode: weightMode,
-          weight_season_id: activeSeason?.id ?? null,
+          weight_season_id: contribSeason?.id ?? null,
           weight_content_type:
             contribContentType === "all"
               ? null
@@ -432,6 +439,17 @@ export default function NewLotteryPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>시즌</Label>
+              <Input
+                type="number"
+                min={1}
+                className="w-full"
+                value={contribSeasonNum}
+                onChange={(e) => setContribSeasonNum(e.target.value)}
+                placeholder="시즌 번호"
+              />
+            </div>
             <div className="space-y-2">
               <Label>컨텐츠 기준</Label>
               <Select
