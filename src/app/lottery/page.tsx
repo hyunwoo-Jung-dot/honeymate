@@ -117,8 +117,8 @@ export default function LotteryListPage() {
                 </CardHeader>
                 <CardContent>
                   <CardDescription>
-                    참가자 {lottery.participants.length}명 |
-                    아이템 {lottery.items.length}개 |{" "}
+                    참가자 {Array.isArray(lottery.participants) ? lottery.participants.length : 0}명 |
+                    아이템 {Array.isArray(lottery.items) ? lottery.items.length : 0}개 |{" "}
                     {format(
                       new Date(lottery.created_at),
                       "yyyy.MM.dd HH:mm",

@@ -237,12 +237,12 @@ export default function LotteryDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              참가자 ({lottery.participants.length}명)
+              참가자 ({(lottery.participants as string[])?.length ?? 0}명)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-1">
-              {lottery.participants.map((id) => (
+              {(lottery.participants as string[])?.map((id) => (
                 <Badge key={id} variant="outline">
                   {getNickname(id)}
                 </Badge>
@@ -253,12 +253,12 @@ export default function LotteryDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              아이템 ({lottery.items.length}개)
+              아이템 ({(lottery.items as string[])?.length ?? 0}개)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-1">
-              {lottery.items.map((item, i) => (
+              {(lottery.items as string[])?.map((item, i) => (
                 <Badge key={i} variant="secondary">
                   {item}
                 </Badge>
@@ -326,24 +326,43 @@ export default function LotteryDetailPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>아이템</TableHead>
-                  <TableHead>당첨자</TableHead>
+                  <TableHead>닉네임</TableHead>
+                  <TableHead>결과</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(lottery.result as LotteryResult[]).map(
-                  (r, i) => (
-                    <TableRow key={i}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        {r.item}
-                      </TableCell>
-                      <TableCell>
-                        <Badge>{getNickname(r.participant_id)}</Badge>
-                      </TableCell>
-                    </TableRow>
-                  )
-                )}
+                {(() => {
+                  const results = lottery.result as LotteryResult[];
+                  const winnerIds = new Set(results.map((r) => r.participant_id));
+                  const participants = lottery.participants as string[];
+                  const losers = participants.filter((id) => !winnerIds.has(id));
+                  return (
+                    <>
+                      {results.map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell>{i + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {getNickname(r.participant_id)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-yellow-500 text-black">{r.item}</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {losers.map((id, i) => (
+                        <TableRow key={`lose-${i}`} className="opacity-50">
+                          <TableCell>{results.length + i + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {getNickname(id)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">꽝</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </>
+                  );
+                })()}
               </TableBody>
             </Table>
           </Card>
