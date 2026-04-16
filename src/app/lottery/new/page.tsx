@@ -13,6 +13,7 @@ import type {
   ContributionScore,
   ParticipantWeight,
   CharacterClass,
+  ItemRegistry,
 } from "@/types";
 import {
   CONTENT_TYPE_LABELS,
@@ -82,8 +83,9 @@ export default function NewLotteryPage() {
     new Set()
   );
   const [items, setItems] = useState<
-    { name: string; goldValue: string }[]
-  >([{ name: "", goldValue: "" }]);
+    { registryId: string; name: string; goldValue: number; qty: string }[]
+  >([{ registryId: "", name: "", goldValue: 0, qty: "1" }]);
+  const [registryItems, setRegistryItems] = useState<ItemRegistry[]>([]);
 
   // Contribution settings
   const [contribSeasonNum, setContribSeasonNum] = useState(
@@ -102,6 +104,15 @@ export default function NewLotteryPage() {
   >([]);
 
   const [saving, setSaving] = useState(false);
+
+  const fetchRegistry = useCallback(async () => {
+    const { data } = await supabase
+      .from("item_registry")
+      .select("*")
+      .eq("is_active", true)
+      .order("gold_value", { ascending: false });
+    setRegistryItems(data ?? []);
+  }, [supabase]);
 
   const fetchMembers = useCallback(async () => {
     const { data } = await supabase
@@ -140,6 +151,7 @@ export default function NewLotteryPage() {
 
   useEffect(() => {
     fetchMembers();
+    fetchRegistry();
     fetchContribScores();
     fetchSettings();
   }, [fetchMembers, fetchContribScores, fetchSettings]);
@@ -187,16 +199,24 @@ export default function NewLotteryPage() {
   const deselectAll = () => setSelectedIds(new Set());
 
   const addItem = () =>
-    setItems([...items, { name: "", goldValue: "" }]);
+    setItems([...items, { registryId: "", name: "", goldValue: 0, qty: "1" }]);
   const removeItem = (idx: number) =>
     setItems(items.filter((_, i) => i !== idx));
-  const updateItem = (
-    idx: number,
-    field: "name" | "goldValue",
-    value: string
-  ) => {
+  const selectRegistryItem = (idx: number, registryId: string) => {
+    const reg = registryItems.find((r) => r.id === registryId);
+    if (!reg) return;
     const next = [...items];
-    next[idx] = { ...next[idx], [field]: value };
+    next[idx] = {
+      registryId: reg.id,
+      name: reg.name,
+      goldValue: reg.gold_value,
+      qty: next[idx].qty || "1",
+    };
+    setItems(next);
+  };
+  const updateQty = (idx: number, qty: string) => {
+    const next = [...items];
+    next[idx] = { ...next[idx], qty };
     setItems(next);
   };
 
@@ -211,18 +231,30 @@ export default function NewLotteryPage() {
     }
     const validItems = items.filter((i) => i.name.trim());
     if (validItems.length === 0) {
-      toast.error("아이템을 1개 이상 입력하세요");
+      toast.error("아이템을 1개 이상 선택하세요");
+      return;
+    }
+    if (validItems.some((i) => !i.registryId)) {
+      toast.error("등록되지 않은 아이템이 있습니다. 아이템 관리에서 먼저 등록하세요.");
       return;
     }
 
     setSaving(true);
 
     const participants = Array.from(selectedIds).sort();
-    const itemNames = validItems.map((i) => i.name.trim());
-    const itemValues = validItems.map((i) => ({
-      name: i.name.trim(),
-      goldValue: parseInt(i.goldValue) || 0,
-    }));
+    // Expand items by quantity (e.g., qty=3 → 3 entries)
+    const expandedItems: { name: string; goldValue: number }[] = [];
+    for (const item of validItems) {
+      const qty = parseInt(item.qty) || 1;
+      for (let i = 0; i < qty; i++) {
+        expandedItems.push({
+          name: item.name,
+          goldValue: item.goldValue,
+        });
+      }
+    }
+    const itemNames = expandedItems.map((i) => i.name);
+    const itemValues = expandedItems;
 
     // Build weights for lottery
     const weights =
@@ -680,30 +712,46 @@ export default function NewLotteryPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
+          {registryItems.length === 0 && (
+            <p className="text-sm text-muted-foreground py-2">
+              등록된 아이템이 없습니다.{" "}
+              <Link href="/items" className="text-primary underline">
+                아이템 관리
+              </Link>
+              에서 먼저 등록하세요.
+            </p>
+          )}
           {items.map((item, idx) => (
-            <div key={idx} className="flex gap-2">
+            <div key={idx} className="flex gap-2 items-center">
+              <Select
+                value={item.registryId}
+                onValueChange={(v) => v && selectRegistryItem(idx, v)}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue>
+                    {item.name || "아이템 선택"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {registryItems.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name} {r.grade ? `[${r.grade}]` : ""} {r.gold_value > 0 ? `(${r.gold_value.toLocaleString()})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Input
-                value={item.name}
-                onChange={(e) =>
-                  updateItem(idx, "name", e.target.value)
-                }
-                placeholder={`아이템 ${idx + 1}`}
-                className="flex-1"
+                type="number"
+                min={1}
+                value={item.qty}
+                onChange={(e) => updateQty(idx, e.target.value)}
+                className="w-16"
+                placeholder="개수"
               />
-              {weightMode === "value_based" && (
-                <Input
-                  type="number"
-                  value={item.goldValue}
-                  onChange={(e) =>
-                    updateItem(
-                      idx,
-                      "goldValue",
-                      e.target.value
-                    )
-                  }
-                  placeholder="다이아"
-                  className="w-24"
-                />
+              {item.goldValue > 0 && (
+                <span className="text-xs text-muted-foreground w-20 text-right">
+                  {(item.goldValue * (parseInt(item.qty) || 1)).toLocaleString()}
+                </span>
               )}
               {items.length > 1 && (
                 <Button
@@ -718,7 +766,7 @@ export default function NewLotteryPage() {
           ))}
           {weightMode === "value_based" && (
             <p className="text-xs text-muted-foreground">
-              가치가 높은 아이템이 기여도 1등에게 배정됩니다
+              총 가치(가치×개수) 높은 아이템이 기여도 1등에게 배정됩니다
             </p>
           )}
         </CardContent>
