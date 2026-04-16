@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import type { Profile, LotteryType } from "@/types";
+import type { Profile, LotteryType, ContentType } from "@/types";
+import { CONTENT_TYPE_LABELS } from "@/lib/constants";
 import { createCommit, revealResult } from "@/lib/lottery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +51,13 @@ export default function NewLotteryPage() {
   const [items, setItems] = useState<string[]>([""]);
   const [cutlineEnabled, setCutlineEnabled] = useState(false);
   const [cutlineRate, setCutlineRate] = useState([70]);
+  const [cutlineContentType, setCutlineContentType] = useState<string>("all");
   const [attendanceRates, setAttendanceRates] = useState<
     Map<string, number>
   >(new Map());
+  const [rawRates, setRawRates] = useState<
+    { profile_id: string; content_type: string; attendance_rate: number }[]
+  >([]);
   const [saving, setSaving] = useState(false);
 
   const fetchMembers = useCallback(async () => {
@@ -68,18 +73,21 @@ export default function NewLotteryPage() {
     const { data } = await supabase
       .from("attendance_rates")
       .select("*");
-    const map = new Map<string, number>();
-    (data ?? []).forEach(
-      (r: { profile_id: string; attendance_rate: number }) => {
-        const existing = map.get(r.profile_id) ?? 0;
-        map.set(
-          r.profile_id,
-          Math.max(existing, r.attendance_rate)
-        );
-      }
-    );
-    setAttendanceRates(map);
+    setRawRates(data ?? []);
   }, [supabase]);
+
+  // Recalculate rates when content type filter changes
+  useEffect(() => {
+    const filtered = cutlineContentType === "all"
+      ? rawRates
+      : rawRates.filter((r) => r.content_type === cutlineContentType);
+    const map = new Map<string, number>();
+    filtered.forEach((r) => {
+      const existing = map.get(r.profile_id) ?? 0;
+      map.set(r.profile_id, Math.max(existing, r.attendance_rate));
+    });
+    setAttendanceRates(map);
+  }, [rawRates, cutlineContentType]);
 
   useEffect(() => {
     fetchMembers();
@@ -249,24 +257,50 @@ export default function NewLotteryPage() {
             <Label>참석률 기준으로 참가자 필터링</Label>
           </div>
           {cutlineEnabled && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>최소 참석률</span>
-                <span className="font-bold">
-                  {cutlineRate[0]}%
-                </span>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm">컨텐츠 기준</Label>
+                <Select
+                  value={cutlineContentType}
+                  onValueChange={(v) => setCutlineContentType(v ?? "all")}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {cutlineContentType === "all"
+                        ? "전체 통합"
+                        : CONTENT_TYPE_LABELS[cutlineContentType as ContentType]}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체 통합</SelectItem>
+                    <SelectItem value="guild_dungeon">길드 던전</SelectItem>
+                    <SelectItem value="guild_war">길드 전장</SelectItem>
+                    <SelectItem value="crusade">크루세이드</SelectItem>
+                    <SelectItem value="boss_raid">보스 토벌</SelectItem>
+                    <SelectItem value="ice_dungeon">특수던전 (얼동)</SelectItem>
+                    <SelectItem value="faction_war">세력전</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <Slider
-                value={cutlineRate}
-                onValueChange={(v) => setCutlineRate(Array.isArray(v) ? [...v] : [v])}
-                min={0}
-                max={100}
-                step={5}
-              />
-              <p className="text-xs text-muted-foreground">
-                자격자: {eligibleMembers.length}명 / 전체:{" "}
-                {members.length}명
-              </p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>최소 참석률</span>
+                  <span className="font-bold">
+                    {cutlineRate[0]}%
+                  </span>
+                </div>
+                <Slider
+                  value={cutlineRate}
+                  onValueChange={(v) => setCutlineRate(Array.isArray(v) ? [...v] : [v])}
+                  min={0}
+                  max={100}
+                  step={5}
+                />
+                <p className="text-xs text-muted-foreground">
+                  자격자: {eligibleMembers.length}명 / 전체:{" "}
+                  {members.length}명
+                </p>
+              </div>
             </div>
           )}
         </CardContent>

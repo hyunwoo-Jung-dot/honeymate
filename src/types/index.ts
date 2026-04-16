@@ -31,6 +31,16 @@ export type CharacterClass =
   | "warrior"
   | "mage";
 
+export interface Season {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+  guild_id: string;
+  created_at: string;
+}
+
 export interface Guild {
   id: string;
   name: string;
@@ -71,6 +81,7 @@ export interface GuildEvent {
   id: string;
   guild_id: string;
   alliance_id: string | null;
+  season_id: string | null;
   content_type: ContentType;
   title: string;
   difficulty: string | null;

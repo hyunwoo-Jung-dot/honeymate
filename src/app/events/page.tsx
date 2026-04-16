@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useSeason } from "@/hooks/useSeason";
 import { AdminGuard } from "@/components/layout/AdminGuard";
 import type { GuildEvent, ContentType } from "@/types";
 import {
@@ -55,7 +56,11 @@ const contentTypes: ContentType[] = [
 export default function EventsPage() {
   const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
+  const { seasons, activeSeason, setActiveSeason } = useSeason();
   const [events, setEvents] = useState<GuildEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleDeleteEvent = async (e: React.MouseEvent, id: string, title: string) => {
     e.preventDefault();
@@ -65,9 +70,6 @@ export default function EventsPage() {
     if (error) toast.error("삭제 실패");
     else { toast.success("삭제됨"); fetchEvents(); }
   };
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     let query = supabase
@@ -76,6 +78,9 @@ export default function EventsPage() {
       .order("scheduled_at", { ascending: false })
       .limit(50);
 
+    if (activeSeason) {
+      query = query.eq("season_id", activeSeason.id);
+    }
     if (filter !== "all") {
       query = query.eq("content_type", filter);
     }
@@ -83,7 +88,7 @@ export default function EventsPage() {
     const { data } = await query;
     setEvents(data ?? []);
     setLoading(false);
-  }, [supabase, filter]);
+  }, [supabase, filter, activeSeason]);
 
   useEffect(() => {
     fetchEvents();
@@ -96,9 +101,26 @@ export default function EventsPage() {
           <h1 className="text-2xl font-bold tracking-tight">
             이벤트 관리
           </h1>
-          <p className="text-muted-foreground">
-            길드 컨텐츠 이벤트 및 참석 체크
-          </p>
+          <div className="flex items-center gap-2">
+            {seasons.length > 0 && (
+              <Select
+                value={activeSeason?.id ?? ""}
+                onValueChange={(v) => {
+                  const s = seasons.find((s) => s.id === v);
+                  if (s) setActiveSeason(s);
+                }}
+              >
+                <SelectTrigger className="w-36 h-8 text-xs">
+                  <SelectValue>{activeSeason?.name ?? "시즌 선택"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {seasons.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
         <AdminGuard>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -113,6 +135,7 @@ export default function EventsPage() {
                 <DialogTitle>이벤트 생성</DialogTitle>
               </DialogHeader>
               <EventForm
+                seasonId={activeSeason?.id}
                 onSaved={() => {
                   setDialogOpen(false);
                   fetchEvents();
@@ -215,7 +238,7 @@ export default function EventsPage() {
 }
 
 // ---- Event Form ----
-function EventForm({ onSaved }: { onSaved: () => void }) {
+function EventForm({ seasonId, onSaved }: { seasonId?: string; onSaved: () => void }) {
   const [supabase] = useState(() => createClient());
   const [contentType, setContentType] =
     useState<ContentType>("guild_dungeon");
@@ -237,6 +260,7 @@ function EventForm({ onSaved }: { onSaved: () => void }) {
 
     const { error } = await supabase.from("events").insert({
       guild_id: GUILD_ID,
+      season_id: seasonId || null,
       content_type: contentType,
       title: title.trim(),
       difficulty: difficulty || null,
