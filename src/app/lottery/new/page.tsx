@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Profile, LotteryType } from "@/types";
-import { createCommit } from "@/lib/lottery";
+import { createCommit, revealResult } from "@/lib/lottery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -140,6 +140,12 @@ export default function NewLotteryPage() {
       items: validItems,
     });
 
+    // Auto-reveal: create and execute in one step
+    const result = await revealResult(
+      { participants, items: validItems },
+      commit
+    );
+
     const { data, error } = await supabase
       .from("lotteries")
       .insert({
@@ -150,7 +156,9 @@ export default function NewLotteryPage() {
         seed_timestamp: commit.seedTimestamp,
         server_secret: commit.serverSecret,
         commit_hash: commit.commitHash,
-        status: "committed",
+        result: result.assignments,
+        revealed_at: new Date().toISOString(),
+        status: "revealed",
       })
       .select()
       .single();
@@ -161,7 +169,7 @@ export default function NewLotteryPage() {
       return;
     }
 
-    toast.success("뽑기 생성됨! 해시가 공개되었습니다.");
+    toast.success("뽑기 완료! 결과를 확인하세요.");
     router.push(`/lottery/${data.id}`);
   };
 

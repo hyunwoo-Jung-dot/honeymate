@@ -14,15 +14,26 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Ticket, Plus } from "lucide-react";
+import { Ticket, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import Link from "next/link";
 
 export default function LotteryListPage() {
   const supabase = createClient();
+  const { isAdmin } = useAuth();
   const [lotteries, setLotteries] = useState<Lottery[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleDelete = async (e: React.MouseEvent, id: string, title: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`"${title}" 뽑기를 삭제하시겠습니까?`)) return;
+    const { error } = await supabase.from("lotteries").delete().eq("id", id);
+    if (error) toast.error("삭제 실패");
+    else { toast.success("삭제됨"); fetchLotteries(); }
+  };
 
   const fetchLotteries = useCallback(async () => {
     const { data } = await supabase
@@ -115,6 +126,14 @@ export default function LotteryListPage() {
                     )}
                   </CardDescription>
                 </CardContent>
+                {isAdmin && (
+                  <div className="px-4 pb-3 flex justify-end">
+                    <Button variant="ghost" size="sm" className="text-destructive h-7"
+                      onClick={(e) => handleDelete(e, lottery.id, lottery.title)}>
+                      <Trash2 className="h-3 w-3 mr-1" />삭제
+                    </Button>
+                  </div>
+                )}
               </Card>
             </Link>
           ))}

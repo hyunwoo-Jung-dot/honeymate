@@ -35,7 +35,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar } from "lucide-react";
+import { Plus, Calendar, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { toast } from "sonner";
@@ -54,8 +54,17 @@ const contentTypes: ContentType[] = [
 
 export default function EventsPage() {
   const supabase = createClient();
-  useAuth();
+  const { isAdmin } = useAuth();
   const [events, setEvents] = useState<GuildEvent[]>([]);
+
+  const handleDeleteEvent = async (e: React.MouseEvent, id: string, title: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`"${title}" 이벤트를 삭제하시겠습니까?`)) return;
+    const { error } = await supabase.from("events").delete().eq("id", id);
+    if (error) toast.error("삭제 실패");
+    else { toast.success("삭제됨"); fetchEvents(); }
+  };
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -188,6 +197,14 @@ export default function EventsPage() {
                     {event.boss_name && ` | ${event.boss_name}`}
                   </CardDescription>
                 </CardContent>
+                {isAdmin && (
+                  <div className="px-4 pb-3 flex justify-end">
+                    <Button variant="ghost" size="sm" className="text-destructive h-7"
+                      onClick={(e) => handleDeleteEvent(e, event.id, event.title)}>
+                      <Trash2 className="h-3 w-3 mr-1" />삭제
+                    </Button>
+                  </div>
+                )}
               </Card>
             </Link>
           ))}
