@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { Profile } from "@/types";
+import type { Profile, CharacterClass } from "@/types";
 import { CLASS_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -324,9 +324,6 @@ function MemberForm({
   const [nickname, setNickname] = useState(
     member?.nickname ?? ""
   );
-  const [serverName, setServerName] = useState(
-    member?.server_name ?? ""
-  );
   const [charClass, setCharClass] = useState(
     member?.character_class ?? ""
   );
@@ -345,7 +342,7 @@ function MemberForm({
 
     const data = {
       nickname: nickname.trim(),
-      server_name: serverName.trim() || null,
+      server_name: null,
       character_class: charClass || null,
       growth_score: parseInt(combatPower) || 0,
       guild_id: GUILD_ID_PLACEHOLDER,
@@ -385,7 +382,9 @@ function MemberForm({
         <Label>직업</Label>
         <Select value={charClass} onValueChange={(v) => setCharClass(v ?? "")}>
           <SelectTrigger>
-            <SelectValue placeholder="선택" />
+            <SelectValue placeholder="선택">
+              {charClass ? CLASS_LABELS[charClass as CharacterClass] ?? charClass : "선택"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="archer">활</SelectItem>
@@ -405,14 +404,6 @@ function MemberForm({
           value={combatPower}
           onChange={(e) => setCombatPower(e.target.value)}
           placeholder="0"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>서버</Label>
-        <Input
-          value={serverName}
-          onChange={(e) => setServerName(e.target.value)}
-          placeholder="서버명"
         />
       </div>
       <Button type="submit" className="w-full" disabled={saving}>

@@ -246,7 +246,9 @@ function EventForm({ onSaved }: { onSaved: () => void }) {
           onValueChange={(v) => v && setContentType(v as ContentType)}
         >
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>
+              {CONTENT_TYPE_LABELS[contentType]}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {contentTypes.map((ct) => (
