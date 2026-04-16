@@ -50,6 +50,22 @@ export const ITEM_GRADES = [
   "전설",
 ] as const;
 
+export const ITEM_GRADE_COLORS: Record<string, string> = {
+  일반: "bg-gray-400 text-white",
+  고급: "bg-green-500 text-white",
+  희귀: "bg-blue-500 text-white",
+  영웅: "bg-purple-500 text-white",
+  전설: "bg-amber-700 text-white",
+};
+
+export const ITEM_GRADE_TEXT_COLORS: Record<string, string> = {
+  일반: "text-gray-400",
+  고급: "text-green-400",
+  희귀: "text-blue-400",
+  영웅: "text-purple-400",
+  전설: "text-amber-600",
+};
+
 export const DIFFICULTY_LEVELS = [
   "없음",
   "초급",

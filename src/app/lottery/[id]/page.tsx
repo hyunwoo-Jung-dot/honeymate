@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { Lottery, Profile, LotteryResult } from "@/types";
+import type { Lottery, Profile, LotteryResult, ItemRegistry } from "@/types";
+import { ITEM_GRADE_TEXT_COLORS } from "@/lib/constants";
 import { revealResult, verifyCommit } from "@/lib/lottery";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,7 @@ export default function LotteryDetailPage() {
   const [profiles, setProfiles] = useState<Map<string, Profile>>(
     new Map()
   );
+  const [itemRegistry, setItemRegistry] = useState<Map<string, ItemRegistry>>(new Map());
   const [loading, setLoading] = useState(true);
   const [revealing, setRevealing] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -56,7 +58,7 @@ export default function LotteryDetailPage() {
   const [animating, setAnimating] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const [lotteryRes, profilesRes] = await Promise.all([
+    const [lotteryRes, profilesRes, itemsRes] = await Promise.all([
       supabase
         .from("lotteries")
         .select("*")
@@ -66,9 +68,17 @@ export default function LotteryDetailPage() {
         .from("profiles")
         .select("*")
         .eq("is_active", true),
+      supabase
+        .from("item_registry")
+        .select("*")
+        .eq("is_active", true),
     ]);
 
     setLottery(lotteryRes.data);
+
+    const iMap = new Map<string, ItemRegistry>();
+    (itemsRes.data ?? []).forEach((i: ItemRegistry) => iMap.set(i.name, i));
+    setItemRegistry(iMap);
 
     const pMap = new Map<string, Profile>();
     (profilesRes.data ?? []).forEach((p: Profile) =>
@@ -345,7 +355,11 @@ export default function LotteryDetailPage() {
                             {getNickname(r.participantId)}
                           </TableCell>
                           <TableCell>
-                            <Badge className="bg-yellow-500 text-black">{r.item}</Badge>
+                            <span className={`font-bold ${
+                              itemRegistry.get(r.item)?.grade
+                                ? ITEM_GRADE_TEXT_COLORS[itemRegistry.get(r.item)!.grade!] ?? "text-yellow-400"
+                                : "text-yellow-400"
+                            }`}>{r.item}</span>
                           </TableCell>
                         </TableRow>
                       ))}

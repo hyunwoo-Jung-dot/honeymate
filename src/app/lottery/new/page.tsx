@@ -701,7 +701,7 @@ export default function NewLotteryPage() {
                       e.target.value
                     )
                   }
-                  placeholder="가치"
+                  placeholder="다이아"
                   className="w-24"
                 />
               )}

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
 import type { ItemRegistry } from "@/types";
-import { ITEM_GRADES } from "@/lib/constants";
+import { ITEM_GRADES, ITEM_GRADE_COLORS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,13 +47,7 @@ import { toast } from "sonner";
 
 const GUILD_ID = "00000000-0000-0000-0000-000000000001";
 
-const GRADE_COLORS: Record<string, string> = {
-  일반: "bg-gray-500",
-  고급: "bg-green-500",
-  희귀: "bg-blue-500",
-  영웅: "bg-purple-500",
-  전설: "bg-orange-500",
-};
+const GRADE_COLORS = ITEM_GRADE_COLORS;
 
 export default function ItemsPage() {
   const [supabase] = useState(() => createClient());
@@ -201,7 +195,7 @@ export default function ItemsPage() {
                   <TableCell>
                     {item.grade ? (
                       <Badge
-                        className={`${GRADE_COLORS[item.grade] ?? "bg-gray-500"} text-white text-xs`}
+                        className={`${GRADE_COLORS[item.grade] ?? "bg-gray-400 text-white"} text-xs`}
                       >
                         {item.grade}
                       </Badge>
@@ -338,7 +332,7 @@ function ItemForm({
         </Select>
       </div>
       <div className="space-y-2">
-        <Label>가치 (골드)</Label>
+        <Label>가치 (다이아)</Label>
         <Input
           type="number"
           value={goldValue}

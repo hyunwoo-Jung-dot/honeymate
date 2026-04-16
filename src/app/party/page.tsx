@@ -187,7 +187,7 @@ export default function PartyPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           {parties.map((party) => (
             <Card key={party.number}>
               <CardHeader className="pb-2">
@@ -212,11 +212,6 @@ export default function PartyPage() {
                     <span className="text-sm font-medium flex-1">
                       {party.healer.nickname}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      {party.healer.growth_score > 0
-                        ? party.healer.growth_score.toLocaleString()
-                        : "-"}
-                    </span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 p-1.5 rounded bg-red-500/5 opacity-30">
@@ -237,11 +232,6 @@ export default function PartyPage() {
                     </Badge>
                     <span className="text-sm font-medium flex-1">
                       {party.lancer.nickname}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {party.lancer.growth_score > 0
-                        ? party.lancer.growth_score.toLocaleString()
-                        : "-"}
                     </span>
                   </div>
                 ) : (
@@ -264,11 +254,6 @@ export default function PartyPage() {
                     {getClassBadge(d.character_class)}
                     <span className="text-sm font-medium flex-1">
                       {d.nickname}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {d.growth_score > 0
-                        ? d.growth_score.toLocaleString()
-                        : "-"}
                     </span>
                   </div>
                 ))}
