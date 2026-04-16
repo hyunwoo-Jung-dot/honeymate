@@ -187,19 +187,13 @@ export default function PartyPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {parties.map((party) => (
             <Card key={party.number}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Sword className="h-4 w-4" />
                   {party.number}파티
-                  <Badge variant="secondary" className="ml-auto text-xs">
-                    {(party.healer ? 1 : 0) +
-                      (party.lancer ? 1 : 0) +
-                      party.dealers.length}
-                    명
-                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-1">
