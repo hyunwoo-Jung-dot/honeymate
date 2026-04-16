@@ -171,67 +171,92 @@ export default function EventsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          {events.map((event) => (
-            <Link
-              key={event.id}
-              href={`/events/${event.id}`}
-            >
-              <Card className="transition-colors hover:bg-accent/50 cursor-pointer">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      className={`${CONTENT_TYPE_COLORS[event.content_type]} text-white text-xs`}
-                    >
-                      {CONTENT_TYPE_LABELS[event.content_type]}
-                    </Badge>
-                    <Badge
-                      variant={
-                        event.status === "completed"
-                          ? "secondary"
-                          : event.status === "in_progress"
-                            ? "default"
-                            : "outline"
-                      }
-                    >
-                      {event.status === "completed"
-                        ? "완료"
-                        : event.status === "in_progress"
-                          ? "진행중"
-                          : "예정"}
-                    </Badge>
-                    {event.difficulty && (
-                      <Badge variant="outline">
-                        {event.difficulty}
-                      </Badge>
-                    )}
+        (() => {
+          // Group events by date
+          const groups = new Map<string, GuildEvent[]>();
+          events.forEach((event) => {
+            const dateKey = format(
+              new Date(event.scheduled_at),
+              "yyyy-MM-dd"
+            );
+            if (!groups.has(dateKey)) groups.set(dateKey, []);
+            groups.get(dateKey)!.push(event);
+          });
+
+          return (
+            <div className="space-y-4">
+              {Array.from(groups.entries()).map(([date, dayEvents]) => (
+                <div key={date}>
+                  <div className="flex items-center gap-2 mb-2 pb-1 border-b">
+                    <h3 className="text-sm font-bold">
+                      {format(new Date(date), "MM월 dd일 (EEE)", { locale: ko })}
+                    </h3>
+                    <span className="text-xs text-muted-foreground">
+                      {dayEvents.length}건
+                    </span>
                   </div>
-                  <CardTitle className="text-base">
-                    {event.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    {format(
-                      new Date(event.scheduled_at),
-                      "yyyy.MM.dd (EEE) HH:mm",
-                      { locale: ko }
-                    )}
-                    {event.boss_name && ` | ${event.boss_name}`}
-                  </CardDescription>
-                </CardContent>
-                {isAdmin && (
-                  <div className="px-4 pb-3 flex justify-end">
-                    <Button variant="ghost" size="sm" className="text-destructive h-7"
-                      onClick={(e) => handleDeleteEvent(e, event.id, event.title)}>
-                      <Trash2 className="h-3 w-3 mr-1" />삭제
-                    </Button>
+                  <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                    {dayEvents.map((event) => (
+                      <Link key={event.id} href={`/events/${event.id}`}>
+                        <Card className="relative transition-colors hover:bg-accent/50 cursor-pointer h-full">
+                          <div className="p-3 space-y-1.5">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <Badge
+                                className={`${CONTENT_TYPE_COLORS[event.content_type]} text-white text-[10px] px-1.5 py-0`}
+                              >
+                                {CONTENT_TYPE_LABELS[event.content_type]}
+                              </Badge>
+                              {event.difficulty && event.difficulty !== "없음" && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {event.difficulty}
+                                </Badge>
+                              )}
+                              <Badge
+                                variant={
+                                  event.status === "completed"
+                                    ? "secondary"
+                                    : event.status === "in_progress"
+                                      ? "default"
+                                      : "outline"
+                                }
+                                className="text-[10px] px-1.5 py-0"
+                              >
+                                {event.status === "completed"
+                                  ? "완료"
+                                  : event.status === "in_progress"
+                                    ? "진행중"
+                                    : "예정"}
+                              </Badge>
+                            </div>
+                            <div className="text-sm font-medium truncate">
+                              {event.title}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {format(new Date(event.scheduled_at), "HH:mm")}
+                              {event.boss_name && ` · ${event.boss_name}`}
+                            </div>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute top-1 right-1 h-6 w-6 text-destructive"
+                                onClick={(e) =>
+                                  handleDeleteEvent(e, event.id, event.title)
+                                }
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </Card>
+                      </Link>
+                    ))}
                   </div>
-                )}
-              </Card>
-            </Link>
-          ))}
-        </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()
       )}
     </div>
   );
