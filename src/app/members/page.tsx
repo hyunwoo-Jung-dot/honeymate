@@ -286,6 +286,7 @@ export default function MembersPage() {
                 >
                   성장도{sortIcon("growth")}
                 </TableHead>
+                <TableHead className="hidden sm:table-cell">각성</TableHead>
                 {isAdmin && (
                   <TableHead className="w-20">관리</TableHead>
                 )}
@@ -296,11 +297,6 @@ export default function MembersPage() {
                 <TableRow key={m.id}>
                   <TableCell className="font-medium">
                     {m.nickname}
-                    {m.is_awakened && (
-                      <Badge className="ml-1 bg-amber-500 text-white text-[10px] px-1.5 py-0">
-                        각성
-                      </Badge>
-                    )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     {m.character_class ? (
@@ -315,6 +311,11 @@ export default function MembersPage() {
                     {m.growth_score > 0
                       ? m.growth_score.toLocaleString()
                       : "-"}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {m.is_awakened ? (
+                      <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">각성</Badge>
+                    ) : "-"}
                   </TableCell>
                   {isAdmin && (
                     <TableCell>
