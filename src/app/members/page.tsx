@@ -55,6 +55,8 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<"nickname" | "class" | "growth">("nickname");
+  const [sortDesc, setSortDesc] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMember, setEditingMember] =
     useState<Profile | null>(null);
@@ -72,11 +74,39 @@ export default function MembersPage() {
     fetchMembers();
   }, [fetchMembers]);
 
-  const filtered = members.filter(
-    (m) =>
-      m.nickname.toLowerCase().includes(search.toLowerCase()) &&
-      m.is_active
-  );
+  const filtered = members
+    .filter(
+      (m) =>
+        m.nickname.toLowerCase().includes(search.toLowerCase()) &&
+        m.is_active
+    )
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortBy === "nickname") {
+        cmp = a.nickname.localeCompare(b.nickname, "ko");
+      } else if (sortBy === "class") {
+        cmp = (a.character_class ?? "zzz").localeCompare(
+          b.character_class ?? "zzz"
+        );
+      } else if (sortBy === "growth") {
+        cmp = a.growth_score - b.growth_score;
+      }
+      return sortDesc ? -cmp : cmp;
+    });
+
+  const toggleSort = (col: "nickname" | "class" | "growth") => {
+    if (sortBy === col) {
+      setSortDesc(!sortDesc);
+    } else {
+      setSortBy(col);
+      setSortDesc(col === "growth"); // growth defaults to desc
+    }
+  };
+
+  const sortIcon = (col: "nickname" | "class" | "growth") => {
+    if (sortBy !== col) return " ⇅";
+    return sortDesc ? " ↓" : " ↑";
+  };
 
   const handleDelete = async (id: string, nickname: string) => {
     if (!confirm(`${nickname} 길드원을 삭제하시겠습니까?`)) return;
@@ -237,12 +267,23 @@ export default function MembersPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>닉네임</TableHead>
-                <TableHead className="hidden sm:table-cell">
-                  직업
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground"
+                  onClick={() => toggleSort("nickname")}
+                >
+                  닉네임{sortIcon("nickname")}
                 </TableHead>
-                <TableHead className="hidden sm:table-cell">
-                  성장도
+                <TableHead
+                  className="hidden sm:table-cell cursor-pointer select-none hover:text-foreground"
+                  onClick={() => toggleSort("class")}
+                >
+                  직업{sortIcon("class")}
+                </TableHead>
+                <TableHead
+                  className="hidden sm:table-cell cursor-pointer select-none hover:text-foreground"
+                  onClick={() => toggleSort("growth")}
+                >
+                  성장도{sortIcon("growth")}
                 </TableHead>
                 {isAdmin && (
                   <TableHead className="w-20">관리</TableHead>
