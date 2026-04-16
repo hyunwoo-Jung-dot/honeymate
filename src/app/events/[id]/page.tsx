@@ -267,7 +267,9 @@ export default function EventDetailPage() {
                 onValueChange={handleEventStatus}
               >
                 <SelectTrigger className="w-28 h-7 text-xs">
-                  <SelectValue />
+                  <SelectValue>
+                    {event.status === "completed" ? "완료" : event.status === "in_progress" ? "진행중" : "예정"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="scheduled">예정</SelectItem>

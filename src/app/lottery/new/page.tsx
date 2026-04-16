@@ -208,7 +208,9 @@ export default function NewLotteryPage() {
               onValueChange={(v) => v && setType(v as LotteryType)}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {type === "random_pick" ? "랜덤 뽑기" : "사다리타기"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="random_pick">
