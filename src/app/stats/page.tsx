@@ -25,7 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { BarChart3, Users } from "lucide-react";
 
 export default function StatsPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const [rates, setRates] = useState<AttendanceRate[]>([]);
   const [filter, setFilter] = useState<string>("all");
   const [cutline, setCutline] = useState([0]);

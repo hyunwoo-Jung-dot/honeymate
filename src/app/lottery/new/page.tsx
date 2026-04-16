@@ -37,7 +37,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 
 export default function NewLotteryPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const router = useRouter();
   const { isAdmin } = useAuth();
 

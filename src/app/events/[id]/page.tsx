@@ -67,7 +67,7 @@ const nextStatus: Record<AttendanceStatus, AttendanceStatus> = {
 export default function EventDetailPage() {
   const params = useParams();
   const eventId = params.id as string;
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
 
   const [event, setEvent] = useState<GuildEvent | null>(null);

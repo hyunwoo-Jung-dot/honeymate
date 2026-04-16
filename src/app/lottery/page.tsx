@@ -21,10 +21,28 @@ import { ko } from "date-fns/locale";
 import Link from "next/link";
 
 export default function LotteryListPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
   const [lotteries, setLotteries] = useState<Lottery[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchLotteries = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("lotteries")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      setLotteries(data ?? []);
+    } catch {
+      // ignore
+    }
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchLotteries();
+  }, [fetchLotteries]);
 
   const handleDelete = async (e: React.MouseEvent, id: string, title: string) => {
     e.preventDefault();
@@ -34,20 +52,6 @@ export default function LotteryListPage() {
     if (error) toast.error("삭제 실패");
     else { toast.success("삭제됨"); fetchLotteries(); }
   };
-
-  const fetchLotteries = useCallback(async () => {
-    const { data } = await supabase
-      .from("lotteries")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setLotteries(data ?? []);
-    setLoading(false);
-  }, [supabase]);
-
-  useEffect(() => {
-    fetchLotteries();
-  }, [fetchLotteries]);
 
   return (
     <div className="space-y-6">

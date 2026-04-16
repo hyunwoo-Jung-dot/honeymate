@@ -53,7 +53,7 @@ const contentTypes: ContentType[] = [
 ];
 
 export default function EventsPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
   const [events, setEvents] = useState<GuildEvent[]>([]);
 
@@ -216,7 +216,7 @@ export default function EventsPage() {
 
 // ---- Event Form ----
 function EventForm({ onSaved }: { onSaved: () => void }) {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const [contentType, setContentType] =
     useState<ContentType>("guild_dungeon");
   const [title, setTitle] = useState("");

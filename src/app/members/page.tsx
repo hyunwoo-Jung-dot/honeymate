@@ -50,7 +50,7 @@ import * as XLSX from "xlsx";
 const GUILD_ID_PLACEHOLDER = "00000000-0000-0000-0000-000000000001";
 
 export default function MembersPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
   const [members, setMembers] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
@@ -314,7 +314,7 @@ function MemberForm({
   member: Profile | null;
   onSaved: () => void;
 }) {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const [nickname, setNickname] = useState(
     member?.nickname ?? ""
   );

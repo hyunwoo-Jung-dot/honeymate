@@ -42,7 +42,7 @@ import Link from "next/link";
 export default function LotteryDetailPage() {
   const params = useParams();
   const lotteryId = params.id as string;
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
 
   const [lottery, setLottery] = useState<Lottery | null>(null);
