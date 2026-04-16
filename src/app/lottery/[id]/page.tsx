@@ -205,8 +205,8 @@ export default function LotteryDetailPage() {
         </CardHeader>
       </Card>
 
-      {/* Commit Hash (always visible) */}
-      <Card>
+      {/* Commit Hash - hidden for now */}
+      <Card className="hidden">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Hash className="h-4 w-4" />
@@ -367,10 +367,9 @@ export default function LotteryDetailPage() {
             </Table>
           </Card>
 
-          <Separator />
-
-          {/* Verification */}
-          <Card>
+          <Separator className="hidden" />
+          {/* Verification - hidden for now */}
+          <Card className="hidden">
             <CardHeader>
               <CardTitle className="text-base">
                 결과 검증
