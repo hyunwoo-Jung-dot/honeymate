@@ -18,6 +18,8 @@ export type LotteryStatus = "pending" | "committed" | "revealed";
 
 export type EventStatus = "scheduled" | "in_progress" | "completed";
 
+export type WeightMode = "equal" | "contribution" | "value_based";
+
 export type AdminRole = "owner" | "officer";
 
 export type CharacterClass =
@@ -131,6 +133,12 @@ export interface Lottery {
   result: LotteryResult[] | null;
   revealed_at: string | null;
   status: LotteryStatus;
+  weight_mode: WeightMode;
+  weight_season_id: string | null;
+  weight_content_type: string | null;
+  healer_bonus_enabled: boolean;
+  participant_weights: ParticipantWeight[] | null;
+  item_values: LotteryItemValue[] | null;
   created_by: string;
   created_at: string;
 }
@@ -138,6 +146,39 @@ export interface Lottery {
 export interface LotteryResult {
   participantId: string;
   item: string;
+}
+
+export interface ParticipantWeight {
+  profileId: string;
+  rawScore: number;
+  bonusScore: number;
+  totalScore: number;
+  weight: number;
+}
+
+export interface LotteryItemValue {
+  name: string;
+  goldValue: number;
+}
+
+export interface GuildSettings {
+  id: string;
+  guild_id: string;
+  healer_bonus_rate: number;
+  updated_at: string;
+}
+
+export interface ContributionScore {
+  profile_id: string;
+  nickname: string;
+  character_class: string | null;
+  content_type: ContentType;
+  season_id: string | null;
+  raw_score: number;
+  total_events: number;
+  present_count: number;
+  afk_count: number;
+  absent_count: number;
 }
 
 // View type
