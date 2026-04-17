@@ -15,6 +15,9 @@ import {
   Ticket,
   BarChart3,
   Shield,
+  UsersRound,
+  Package,
+  Megaphone,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -22,7 +25,7 @@ const quickLinks = [
   {
     href: "/members",
     label: "길드원 관리",
-    description: "길드원 등록, 수정, 엑셀 업로드",
+    description: "길드원 등록, 수정, 각성 여부",
     icon: Users,
     color: "text-blue-500",
   },
@@ -35,15 +38,36 @@ const quickLinks = [
   },
   {
     href: "/lottery",
-    label: "뽑기 / 사다리",
-    description: "공정한 아이템 분배",
+    label: "분배",
+    description: "아이템 분배 및 다이아 분배",
     icon: Ticket,
     color: "text-purple-500",
   },
   {
+    href: "/party",
+    label: "파티 편성",
+    description: "역할·성장도 기반 자동 파티 구성",
+    icon: UsersRound,
+    color: "text-cyan-500",
+  },
+  {
+    href: "/items",
+    label: "관리",
+    description: "아이템 가치 및 보스 이름 등록",
+    icon: Package,
+    color: "text-yellow-500",
+  },
+  {
+    href: "/notices",
+    label: "공지사항",
+    description: "운영진 공지 작성 및 열람",
+    icon: Megaphone,
+    color: "text-pink-500",
+  },
+  {
     href: "/stats",
-    label: "참석률 통계",
-    description: "컨텐츠별 참석률 차트 및 컷라인",
+    label: "통계",
+    description: "기여도 순위 및 참석률 차트",
     icon: BarChart3,
     color: "text-orange-500",
   },
@@ -74,7 +98,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
         {quickLinks.map((item) => {
           const Icon = item.icon;
           return (
