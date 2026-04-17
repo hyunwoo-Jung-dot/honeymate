@@ -361,7 +361,7 @@ export default function NewLotteryPage() {
         setSaving(false);
         return;
       }
-      toast.success("뽑기 완료!");
+      toast.success("분배 완료!");
       router.push(`/lottery/${data.id}`);
     }
   };
@@ -369,7 +369,7 @@ export default function NewLotteryPage() {
   if (!isAdmin) {
     return (
       <div className="text-center py-10 text-muted-foreground">
-        운영진만 뽑기를 생성할 수 있습니다.
+        운영진만 분배를 생성할 수 있습니다.
       </div>
     );
   }
@@ -384,11 +384,11 @@ export default function NewLotteryPage() {
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4 mr-1" />
-        뽑기 목록
+        분배 목록
       </Link>
 
       <h1 className="text-2xl font-bold tracking-tight">
-        새 뽑기 생성
+        새 분배 생성
       </h1>
 
       {/* Basic Info */}
@@ -784,7 +784,7 @@ export default function NewLotteryPage() {
           ? "생성 중..."
           : weightMode === "value_based"
             ? "순위 분배 실행"
-            : "뽑기 실행"}
+            : "분배 실행"}
       </Button>
     </div>
   );

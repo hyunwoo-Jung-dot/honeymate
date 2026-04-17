@@ -194,6 +194,27 @@ export interface BossRegistry {
   updated_at: string;
 }
 
+export interface DiamondDistribution {
+  id: string;
+  guild_id: string;
+  title: string;
+  total_amount: number;
+  per_person: number;
+  recipient_count: number;
+  is_distributed: boolean;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiamondDistributionMember {
+  id: string;
+  distribution_id: string;
+  profile_id: string;
+  is_received: boolean;
+  created_at: string;
+}
+
 export interface GuildSettings {
   id: string;
   guild_id: string;

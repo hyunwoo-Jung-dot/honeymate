@@ -166,7 +166,7 @@ export default function LotteryDetailPage() {
   if (!lottery) {
     return (
       <div className="text-center py-10 text-muted-foreground">
-        뽑기를 찾을 수 없습니다.
+        분배를 찾을 수 없습니다.
       </div>
     );
   }
@@ -178,7 +178,7 @@ export default function LotteryDetailPage() {
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4 mr-1" />
-        뽑기 목록
+        분배 목록
       </Link>
 
       {/* Header */}
@@ -201,7 +201,7 @@ export default function LotteryDetailPage() {
             <Badge variant="outline">
               {lottery.type === "ladder"
                 ? "사다리타기"
-                : "랜덤 뽑기"}
+                : "랜덤"}
             </Badge>
           </div>
           <CardTitle>{lottery.title}</CardTitle>
@@ -304,7 +304,7 @@ export default function LotteryDetailPage() {
                     disabled={revealing}
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    뽑기 실행
+                    분배 실행
                   </Button>
                 </>
               )}
