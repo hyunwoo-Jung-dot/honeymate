@@ -14,9 +14,11 @@ import type {
   ParticipantWeight,
   CharacterClass,
   ItemRegistry,
+  ItemCategory,
+  GuildEvent,
+  Attendance,
 } from "@/types";
 import {
-  CONTENT_TYPE_LABELS,
   CLASS_LABELS,
 } from "@/lib/constants";
 import { createCommit, revealResult } from "@/lib/lottery";
@@ -52,15 +54,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ItemForm } from "@/app/items/page";
+import {
   ArrowLeft,
   Plus,
   X,
   Users,
   Ticket,
   Trophy,
+  CalendarCheck,
+  PenLine,
+  List,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+
+import { CONTENT_TYPE_LABELS as CTL, CONTENT_TYPE_COLORS } from "@/lib/constants";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 
 const WEIGHT_MODE_LABELS: Record<WeightMode, string> = {
   equal: "균등 확률",
@@ -86,6 +102,12 @@ export default function NewLotteryPage() {
     { registryId: string; name: string; goldValue: number; qty: string }[]
   >([{ registryId: "", name: "", goldValue: 0, qty: "1" }]);
   const [registryItems, setRegistryItems] = useState<ItemRegistry[]>([]);
+  const [categories, setCategories] = useState<ItemCategory[]>([]);
+  const [itemCatFilter, setItemCatFilter] = useState("all");
+  const [itemInputModes, setItemInputModes] = useState<("select" | "text")[]>(["select"]);
+  const [quickRegister, setQuickRegister] = useState<{ open: boolean; idx: number; name: string }>({ open: false, idx: 0, name: "" });
+  const [importEventOpen, setImportEventOpen] = useState(false);
+  const [recentEvents, setRecentEvents] = useState<GuildEvent[]>([]);
 
   // Contribution settings
   const [contribSeasonNum, setContribSeasonNum] = useState(
@@ -106,12 +128,21 @@ export default function NewLotteryPage() {
   const [saving, setSaving] = useState(false);
 
   const fetchRegistry = useCallback(async () => {
+    const [regRes, catRes] = await Promise.all([
+      supabase.from("item_registry").select("*").eq("is_active", true).order("gold_value", { ascending: false }),
+      supabase.from("item_categories").select("*").eq("guild_id", "00000000-0000-0000-0000-000000000001").order("sort_order"),
+    ]);
+    setRegistryItems(regRes.data ?? []);
+    setCategories(catRes.data ?? []);
+  }, [supabase]);
+
+  const fetchRecentEvents = useCallback(async () => {
     const { data } = await supabase
-      .from("item_registry")
+      .from("events")
       .select("*")
-      .eq("is_active", true)
-      .order("gold_value", { ascending: false });
-    setRegistryItems(data ?? []);
+      .order("scheduled_at", { ascending: false })
+      .limit(20);
+    setRecentEvents(data ?? []);
   }, [supabase]);
 
   const fetchMembers = useCallback(async () => {
@@ -154,7 +185,8 @@ export default function NewLotteryPage() {
     fetchRegistry();
     fetchContribScores();
     fetchSettings();
-  }, [fetchMembers, fetchContribScores, fetchSettings]);
+    fetchRecentEvents();
+  }, [fetchMembers, fetchContribScores, fetchSettings, fetchRecentEvents]);
 
   // Recalculate weights when selection changes
   useEffect(() => {
@@ -198,10 +230,49 @@ export default function NewLotteryPage() {
     setSelectedIds(new Set(members.map((m) => m.id)));
   const deselectAll = () => setSelectedIds(new Set());
 
-  const addItem = () =>
+  const addItem = () => {
     setItems([...items, { registryId: "", name: "", goldValue: 0, qty: "1" }]);
-  const removeItem = (idx: number) =>
+    setItemInputModes([...itemInputModes, "select"]);
+  };
+  const removeItem = (idx: number) => {
     setItems(items.filter((_, i) => i !== idx));
+    setItemInputModes(itemInputModes.filter((_, i) => i !== idx));
+  };
+
+  const setInputMode = (idx: number, mode: "select" | "text") => {
+    const next = [...itemInputModes];
+    next[idx] = mode;
+    setItemInputModes(next);
+    if (mode === "select") {
+      const nextItems = [...items];
+      nextItems[idx] = { registryId: "", name: "", goldValue: 0, qty: nextItems[idx].qty };
+      setItems(nextItems);
+    }
+  };
+
+  const setTextItem = (idx: number, name: string) => {
+    const next = [...items];
+    const reg = registryItems.find((r) => r.name.toLowerCase() === name.toLowerCase());
+    next[idx] = reg
+      ? { registryId: reg.id, name: reg.name, goldValue: reg.gold_value, qty: next[idx].qty }
+      : { registryId: "", name, goldValue: 0, qty: next[idx].qty };
+    setItems(next);
+  };
+
+  const importFromEvent = async (eventId: string, statusFilter: ("present" | "afk" | "absent")[]) => {
+    const { data } = await supabase
+      .from("attendances")
+      .select("profile_id, status")
+      .eq("event_id", eventId)
+      .in("status", statusFilter);
+    if (data && data.length > 0) {
+      setSelectedIds(new Set((data as Attendance[]).map((a) => a.profile_id)));
+      setImportEventOpen(false);
+      toast.success(`${data.length}명 가져옴`);
+    } else {
+      toast("해당 조건의 참석자가 없습니다");
+    }
+  };
   const selectRegistryItem = (idx: number, registryId: string) => {
     const reg = registryItems.find((r) => r.id === registryId);
     if (!reg) return;
@@ -494,7 +565,7 @@ export default function NewLotteryPage() {
                   <SelectValue>
                     {contribContentType === "all"
                       ? "전체 통합"
-                      : CONTENT_TYPE_LABELS[
+                      : CTL[
                           contribContentType as ContentType
                         ]}
                   </SelectValue>
@@ -548,26 +619,18 @@ export default function NewLotteryPage() {
       {/* Participant Selection */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <CardTitle className="text-base">
               <Users className="inline h-4 w-4 mr-1" />
               참가자 선택 ({selectedIds.size}명)
             </CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={selectAll}
-              >
-                전체선택
+            <div className="flex gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => { fetchRecentEvents(); setImportEventOpen(true); }}>
+                <CalendarCheck className="h-3 w-3 mr-1" />
+                이벤트에서 가져오기
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={deselectAll}
-              >
-                해제
-              </Button>
+              <Button variant="outline" size="sm" onClick={selectAll}>전체선택</Button>
+              <Button variant="outline" size="sm" onClick={deselectAll}>해제</Button>
             </div>
           </div>
         </CardHeader>
@@ -695,75 +758,100 @@ export default function NewLotteryPage() {
       {/* Items */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <CardTitle className="text-base">
               <Ticket className="inline h-4 w-4 mr-1" />
-              아이템 (
-              {items.filter((i) => i.name.trim()).length}개)
+              아이템 ({items.filter((i) => i.name.trim()).length}개)
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={addItem}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              추가
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select value={itemCatFilter} onValueChange={(v) => setItemCatFilter(v ?? "all")}>
+                <SelectTrigger className="w-32 h-8 text-xs">
+                  <SelectValue>{itemCatFilter === "all" ? "전체 카테고리" : categories.find(c => c.id === itemCatFilter)?.name ?? "전체"}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체</SelectItem>
+                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={addItem}>
+                <Plus className="h-3 w-3 mr-1" />추가
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
-          {registryItems.length === 0 && (
-            <p className="text-sm text-muted-foreground py-2">
-              등록된 아이템이 없습니다.{" "}
-              <Link href="/items" className="text-primary underline">
-                아이템 관리
-              </Link>
-              에서 먼저 등록하세요.
-            </p>
-          )}
-          {items.map((item, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <Select
-                value={item.registryId}
-                onValueChange={(v) => v && selectRegistryItem(idx, v)}
-              >
-                <SelectTrigger className="flex-1">
-                  <SelectValue>
-                    {item.name || "아이템 선택"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {registryItems.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.name} {r.grade ? `[${r.grade}]` : ""} {r.gold_value > 0 ? `(${r.gold_value.toLocaleString()})` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                min={1}
-                value={item.qty}
-                onChange={(e) => updateQty(idx, e.target.value)}
-                className="w-16"
-                placeholder="개수"
-              />
-              {item.goldValue > 0 && (
-                <span className="text-xs text-muted-foreground w-20 text-right">
-                  {(item.goldValue * (parseInt(item.qty) || 1)).toLocaleString()}
-                </span>
-              )}
-              {items.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeItem(idx)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+          {items.map((item, idx) => {
+            const mode = itemInputModes[idx] ?? "select";
+            const isUnregistered = mode === "text" && item.name.trim() && !item.registryId;
+            const filteredRegistry = itemCatFilter === "all"
+              ? registryItems
+              : registryItems.filter((r) => r.category_id === itemCatFilter);
+            return (
+              <div key={idx} className="space-y-1">
+                <div className="flex gap-2 items-center">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    title={mode === "select" ? "직접입력으로 전환" : "선택으로 전환"}
+                    onClick={() => setInputMode(idx, mode === "select" ? "text" : "select")}
+                  >
+                    {mode === "select" ? <PenLine className="h-3 w-3" /> : <List className="h-3 w-3" />}
+                  </Button>
+                  {mode === "select" ? (
+                    <Select value={item.registryId} onValueChange={(v) => v && selectRegistryItem(idx, v)}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue>{item.name || "아이템 선택"}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredRegistry.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name} {r.grade ? `[${r.grade}]` : ""} {r.gold_value > 0 ? `(${r.gold_value.toLocaleString()})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      className="flex-1"
+                      placeholder="아이템명 직접 입력"
+                      value={item.name}
+                      onChange={(e) => setTextItem(idx, e.target.value)}
+                    />
+                  )}
+                  <Input
+                    type="number" min={1}
+                    value={item.qty}
+                    onChange={(e) => updateQty(idx, e.target.value)}
+                    className="w-16" placeholder="수량"
+                  />
+                  {item.goldValue > 0 && (
+                    <span className="text-xs text-muted-foreground w-20 text-right">
+                      {(item.goldValue * (parseInt(item.qty) || 1)).toLocaleString()}
+                    </span>
+                  )}
+                  {items.length > 1 && (
+                    <Button variant="ghost" size="icon" onClick={() => removeItem(idx)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {isUnregistered && (
+                  <div className="flex items-center gap-2 pl-10 text-xs text-amber-600">
+                    <span>등록되지 않은 아이템입니다.</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={() => setQuickRegister({ open: true, idx, name: item.name })}
+                    >
+                      등록하기
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {weightMode === "value_based" && (
             <p className="text-xs text-muted-foreground">
               총 가치(가치×개수) 높은 아이템이 기여도 1등에게 배정됩니다
@@ -771,6 +859,34 @@ export default function NewLotteryPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Import from event dialog */}
+      <Dialog open={importEventOpen} onOpenChange={setImportEventOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>이벤트에서 참가자 가져오기</DialogTitle></DialogHeader>
+          <ImportEventDialog
+            events={recentEvents}
+            onImport={importFromEvent}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick register dialog */}
+      <Dialog open={quickRegister.open} onOpenChange={(open) => setQuickRegister((q) => ({ ...q, open }))}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>아이템 등록</DialogTitle></DialogHeader>
+          <ItemForm
+            item={null}
+            categories={categories}
+            initialName={quickRegister.name}
+            onSaved={(saved) => {
+              setQuickRegister((q) => ({ ...q, open: false }));
+              setRegistryItems((prev) => [saved, ...prev]);
+              selectRegistryItem(quickRegister.idx, saved.id);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Separator />
 
@@ -785,6 +901,68 @@ export default function NewLotteryPage() {
           : weightMode === "value_based"
             ? "순위 분배 실행"
             : "분배 실행"}
+      </Button>
+    </div>
+  );
+}
+
+function ImportEventDialog({
+  events,
+  onImport,
+}: {
+  events: GuildEvent[];
+  onImport: (eventId: string, statuses: ("present" | "afk" | "absent")[]) => void;
+}) {
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [statusFilter, setStatusFilter] = useState<("present" | "afk" | "absent")[]>(["present"]);
+
+  const toggleStatus = (s: "present" | "afk" | "absent") => {
+    setStatusFilter((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label>이벤트 선택</Label>
+        <Select value={selectedEventId} onValueChange={(v) => setSelectedEventId(v ?? "")}>
+          <SelectTrigger>
+            <SelectValue>{selectedEventId ? events.find(e => e.id === selectedEventId)?.title ?? "선택" : "선택"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {events.map((e) => (
+              <SelectItem key={e.id} value={e.id}>
+                <span className="text-xs text-muted-foreground mr-2">
+                  {format(new Date(e.scheduled_at), "MM/dd", { locale: ko })}
+                </span>
+                {e.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>참석 상태 포함</Label>
+        <div className="flex gap-2">
+          {(["present", "afk", "absent"] as const).map((s) => (
+            <label key={s} className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={statusFilter.includes(s)}
+                onChange={() => toggleStatus(s)}
+              />
+              <span className="text-sm">{s === "present" ? "참석" : s === "afk" ? "잠수" : "불참"}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <Button
+        className="w-full"
+        disabled={!selectedEventId || statusFilter.length === 0}
+        onClick={() => onImport(selectedEventId, statusFilter)}
+      >
+        가져오기
       </Button>
     </div>
   );
