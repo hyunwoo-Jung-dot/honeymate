@@ -87,19 +87,16 @@ export function composeParties(
     ...extraLancers,
   ].sort((a, b) => b.growth_score - a.growth_score);
 
-  // Distribute dealers across parties (round-robin)
-  const dealerSlots = partySize - 2; // healer + lancer slots
-  allDealers.forEach((d, i) => {
-    const partyIdx = i % numParties;
-    if (parties[partyIdx].dealers.length < dealerSlots) {
-      parties[partyIdx].dealers.push(d);
-    } else {
-      // Find party with fewest dealers
-      const minParty = parties.reduce((min, p) =>
-        p.dealers.length < min.dealers.length ? p : min
-      );
-      minParty.dealers.push(d);
-    }
+  // Available dealer slots per party = partySize minus filled healer/lancer slots
+  const getAvailableSlots = (p: Party) =>
+    partySize - (p.healer ? 1 : 0) - (p.lancer ? 1 : 0) - p.dealers.length;
+
+  allDealers.forEach((d) => {
+    // Find party with most available slots (prefer parties missing healer/lancer)
+    const target = parties.reduce((best, p) =>
+      getAvailableSlots(p) > getAvailableSlots(best) ? p : best
+    );
+    target.dealers.push(d);
   });
 
   return parties;
