@@ -89,7 +89,7 @@ export default function NoticesPage() {
                 작성
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {editingNotice ? "공지 수정" : "공지 작성"}
@@ -240,8 +240,8 @@ function NoticeForm({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          rows={8}
-          className="w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus:border-primary"
+          rows={16}
+          className="w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus:border-primary min-h-[300px] resize-y"
           required
         />
       </div>

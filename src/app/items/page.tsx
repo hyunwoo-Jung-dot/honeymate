@@ -21,13 +21,33 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Search, Package, Skull, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, Skull, Tag, KeyRound, Lock } from "lucide-react";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 const GUILD_ID = "00000000-0000-0000-0000-000000000001";
 
 export default function ManagementPage() {
   const [tab, setTab] = useState("items");
+  const { isAdmin, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      router.replace("/login");
+    }
+  }, [loading, isAdmin, router]);
+
+  if (loading || !isAdmin) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-muted-foreground">
+          <Lock className="mx-auto h-10 w-10 mb-2 opacity-50" />
+          <p>운영진 전용 페이지입니다.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -40,9 +60,13 @@ export default function ManagementPage() {
           <TabsTrigger value="items"><Package className="h-4 w-4 mr-1" />아이템</TabsTrigger>
           <TabsTrigger value="categories"><Tag className="h-4 w-4 mr-1" />카테고리</TabsTrigger>
           <TabsTrigger value="bosses"><Skull className="h-4 w-4 mr-1" />보스</TabsTrigger>
+          <TabsTrigger value="account"><KeyRound className="h-4 w-4 mr-1" />계정</TabsTrigger>
         </TabsList>
       </Tabs>
-      {tab === "items" ? <ItemsTab /> : tab === "categories" ? <CategoriesTab /> : <BossesTab />}
+      {tab === "items" ? <ItemsTab />
+        : tab === "categories" ? <CategoriesTab />
+        : tab === "bosses" ? <BossesTab />
+        : <AccountTab />}
     </div>
   );
 }
@@ -558,5 +582,73 @@ function BossForm({ boss, onSaved }: { boss: BossRegistry | null; onSaved: () =>
         {saving ? "저장 중..." : boss ? "수정" : "추가"}
       </Button>
     </form>
+  );
+}
+
+// ==================== Account Tab ====================
+function AccountTab() {
+  const [supabase] = useState(() => createClient());
+  const { user } = useAuth();
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleChangePw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPw.length < 6) {
+      toast.error("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast.error("비밀번호 확인이 일치하지 않습니다.");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPw });
+    setSaving(false);
+    if (error) {
+      toast.error("변경 실패: " + error.message);
+    } else {
+      toast.success("비밀번호가 변경되었습니다.");
+      setNewPw("");
+      setConfirmPw("");
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="py-6 max-w-md mx-auto space-y-4">
+        <div>
+          <Label className="text-xs text-muted-foreground">현재 운영진 계정</Label>
+          <p className="text-sm font-medium mt-1">{user?.email ?? "-"}</p>
+        </div>
+        <form onSubmit={handleChangePw} className="space-y-3">
+          <div className="space-y-2">
+            <Label>새 비밀번호 *</Label>
+            <Input
+              type="password"
+              value={newPw}
+              onChange={(e) => setNewPw(e.target.value)}
+              placeholder="6자 이상"
+              required
+              minLength={6}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>새 비밀번호 확인 *</Label>
+            <Input
+              type="password"
+              value={confirmPw}
+              onChange={(e) => setConfirmPw(e.target.value)}
+              required
+              minLength={6}
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={saving}>
+            {saving ? "변경 중..." : "비밀번호 변경"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

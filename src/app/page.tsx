@@ -28,6 +28,7 @@ const quickLinks = [
     description: "길드원 등록, 수정, 각성 여부",
     icon: Users,
     color: "text-blue-500",
+    adminOnly: false,
   },
   {
     href: "/events",
@@ -35,6 +36,7 @@ const quickLinks = [
     description: "컨텐츠별 참석 체크 및 관리",
     icon: Calendar,
     color: "text-green-500",
+    adminOnly: false,
   },
   {
     href: "/lottery",
@@ -42,6 +44,7 @@ const quickLinks = [
     description: "아이템 분배 및 다이아 분배",
     icon: Ticket,
     color: "text-purple-500",
+    adminOnly: false,
   },
   {
     href: "/party",
@@ -49,6 +52,7 @@ const quickLinks = [
     description: "역할·성장도 기반 자동 파티 구성",
     icon: UsersRound,
     color: "text-cyan-500",
+    adminOnly: false,
   },
   {
     href: "/items",
@@ -56,6 +60,7 @@ const quickLinks = [
     description: "아이템 가치 및 보스 이름 등록",
     icon: Package,
     color: "text-yellow-500",
+    adminOnly: true,
   },
   {
     href: "/notices",
@@ -63,6 +68,7 @@ const quickLinks = [
     description: "운영진 공지 작성 및 열람",
     icon: Megaphone,
     color: "text-pink-500",
+    adminOnly: false,
   },
   {
     href: "/stats",
@@ -70,6 +76,7 @@ const quickLinks = [
     description: "기여도 순위 및 참석률 차트",
     icon: BarChart3,
     color: "text-orange-500",
+    adminOnly: false,
   },
 ];
 
@@ -99,7 +106,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-        {quickLinks.map((item) => {
+        {quickLinks.filter((item) => !item.adminOnly || isAdmin).map((item) => {
           const Icon = item.icon;
           return (
             <Link key={item.href} href={item.href}>

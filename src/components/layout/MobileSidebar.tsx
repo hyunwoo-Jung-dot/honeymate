@@ -19,22 +19,24 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useUIStore } from "@/stores/uiStore";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/", label: "대시보드", icon: BarChart3 },
-  { href: "/members", label: "길드원", icon: Users },
-  { href: "/events", label: "참석관리", icon: Calendar },
-  { href: "/lottery", label: "분배", icon: Ticket },
-  { href: "/party", label: "파티편성", icon: UsersRound },
-  { href: "/items", label: "관리", icon: Package },
-  { href: "/notices", label: "공지", icon: Megaphone },
-  { href: "/stats", label: "통계", icon: BarChart3 },
+  { href: "/", label: "대시보드", icon: BarChart3, adminOnly: false },
+  { href: "/members", label: "길드원", icon: Users, adminOnly: false },
+  { href: "/events", label: "참석관리", icon: Calendar, adminOnly: false },
+  { href: "/lottery", label: "분배", icon: Ticket, adminOnly: false },
+  { href: "/party", label: "파티편성", icon: UsersRound, adminOnly: false },
+  { href: "/items", label: "관리", icon: Package, adminOnly: true },
+  { href: "/notices", label: "공지", icon: Megaphone, adminOnly: false },
+  { href: "/stats", label: "통계", icon: BarChart3, adminOnly: false },
 ];
 
 export function MobileSidebar() {
   const pathname = usePathname();
   const { sidebarOpen, setSidebarOpen } = useUIStore();
+  const { isAdmin } = useAuth();
 
   return (
     <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -46,7 +48,7 @@ export function MobileSidebar() {
           </SheetTitle>
         </SheetHeader>
         <nav className="mt-6 flex flex-col gap-1">
-          {navItems.map((item) => {
+          {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
             const Icon = item.icon;
             const isActive =
               pathname === item.href ||

@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
+import { AdminGuard } from "@/components/layout/AdminGuard";
 import {
   Card,
   CardContent,
@@ -26,6 +28,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function PartyPage() {
   const [supabase] = useState(() => createClient());
+  const { isAdmin } = useAuth();
   const [members, setMembers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [partySize, setPartySize] = useState(5);
@@ -98,10 +101,12 @@ export default function PartyPage() {
             성장도 기반 자동 파티 구성
           </p>
         </div>
-        <Button onClick={handleCompose} size="sm">
-          <RefreshCw className="h-4 w-4 mr-1" />
-          재편성
-        </Button>
+        <AdminGuard>
+          <Button onClick={handleCompose} size="sm">
+            <RefreshCw className="h-4 w-4 mr-1" />
+            재편성
+          </Button>
+        </AdminGuard>
       </div>
 
       {/* Summary */}
@@ -161,6 +166,7 @@ export default function PartyPage() {
               onChange={(e) =>
                 setPartySize(parseInt(e.target.value) || 5)
               }
+              disabled={!isAdmin}
               className="w-20"
             />
             <span className="text-sm text-muted-foreground">

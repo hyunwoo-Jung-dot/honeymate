@@ -280,13 +280,17 @@ export default function MembersPage() {
                 >
                   직업{sortIcon("class")}
                 </TableHead>
-                <TableHead
-                  className="hidden sm:table-cell cursor-pointer select-none hover:text-foreground"
-                  onClick={() => toggleSort("growth")}
-                >
-                  성장도{sortIcon("growth")}
-                </TableHead>
-                <TableHead className="hidden sm:table-cell">각성</TableHead>
+                {isAdmin && (
+                  <TableHead
+                    className="hidden sm:table-cell cursor-pointer select-none hover:text-foreground"
+                    onClick={() => toggleSort("growth")}
+                  >
+                    성장도{sortIcon("growth")}
+                  </TableHead>
+                )}
+                {isAdmin && (
+                  <TableHead className="hidden sm:table-cell">각성</TableHead>
+                )}
                 {isAdmin && (
                   <TableHead className="w-20">관리</TableHead>
                 )}
@@ -307,16 +311,20 @@ export default function MembersPage() {
                       "-"
                     )}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {m.growth_score > 0
-                      ? m.growth_score.toLocaleString()
-                      : "-"}
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {m.is_awakened ? (
-                      <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">각성</Badge>
-                    ) : "-"}
-                  </TableCell>
+                  {isAdmin && (
+                    <TableCell className="hidden sm:table-cell">
+                      {m.growth_score > 0
+                        ? m.growth_score.toLocaleString()
+                        : "-"}
+                    </TableCell>
+                  )}
+                  {isAdmin && (
+                    <TableCell className="hidden sm:table-cell">
+                      {m.is_awakened ? (
+                        <Badge className="bg-amber-500 text-white text-[10px] px-1.5 py-0">각성</Badge>
+                      ) : "-"}
+                    </TableCell>
+                  )}
                   {isAdmin && (
                     <TableCell>
                       <div className="flex gap-1">
