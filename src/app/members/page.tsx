@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { Profile, CharacterClass } from "@/types";
+import type { Profile, CharacterClass, CharacterClassDef } from "@/types";
 import { CLASS_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,10 @@ export default function MembersPage() {
   const [supabase] = useState(() => createClient());
   const { isAdmin } = useAuth();
   const [members, setMembers] = useState<Profile[]>([]);
+  const [classDefs, setClassDefs] = useState<CharacterClassDef[]>([]);
   const [search, setSearch] = useState("");
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [awakenFilter, setAwakenFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<"nickname" | "class" | "growth">("nickname");
   const [sortDesc, setSortDesc] = useState(false);
@@ -63,11 +66,16 @@ export default function MembersPage() {
     useState<Profile | null>(null);
 
   const fetchMembers = useCallback(async () => {
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .order("nickname");
-    setMembers(data ?? []);
+    const [memRes, clsRes] = await Promise.all([
+      supabase.from("profiles").select("*").order("nickname"),
+      supabase
+        .from("character_classes")
+        .select("*")
+        .eq("guild_id", GUILD_ID_PLACEHOLDER)
+        .order("sort_order"),
+    ]);
+    setMembers(memRes.data ?? []);
+    setClassDefs(clsRes.data ?? []);
     setLoading(false);
   }, [supabase]);
 
@@ -75,12 +83,21 @@ export default function MembersPage() {
     fetchMembers();
   }, [fetchMembers]);
 
+  const classLabel = (code: string | null | undefined): string => {
+    if (!code) return "-";
+    const def = classDefs.find((c) => c.code === code);
+    return def?.label ?? CLASS_LABELS[code as CharacterClass] ?? code;
+  };
+
   const filtered = members
-    .filter(
-      (m) =>
-        m.nickname.toLowerCase().includes(search.toLowerCase()) &&
-        m.is_active
-    )
+    .filter((m) => {
+      if (!m.is_active) return false;
+      if (!m.nickname.toLowerCase().includes(search.toLowerCase())) return false;
+      if (classFilter !== "all" && m.character_class !== classFilter) return false;
+      if (awakenFilter === "awakened" && !m.is_awakened) return false;
+      if (awakenFilter === "not_awakened" && m.is_awakened) return false;
+      return true;
+    })
     .sort((a, b) => {
       let cmp = 0;
       if (sortBy === "nickname") {
@@ -234,14 +251,47 @@ export default function MembersPage() {
         </AdminGuard>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="닉네임 검색..."
-          className="pl-9"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="닉네임 검색..."
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={classFilter} onValueChange={(v) => setClassFilter(v ?? "all")}>
+          <SelectTrigger className="w-32">
+            <SelectValue>
+              {classFilter === "all" ? "전체 직업" : classLabel(classFilter)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 직업</SelectItem>
+            {classDefs.map((c) => (
+              <SelectItem key={c.id} value={c.code}>{c.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {isAdmin && (
+          <Select value={awakenFilter} onValueChange={(v) => setAwakenFilter(v ?? "all")}>
+            <SelectTrigger className="w-28">
+              <SelectValue>
+                {awakenFilter === "awakened"
+                  ? "각성"
+                  : awakenFilter === "not_awakened"
+                    ? "비각성"
+                    : "각성 전체"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">각성 전체</SelectItem>
+              <SelectItem value="awakened">각성</SelectItem>
+              <SelectItem value="not_awakened">비각성</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {loading ? (
@@ -305,7 +355,7 @@ export default function MembersPage() {
                   <TableCell className="hidden sm:table-cell">
                     {m.character_class ? (
                       <Badge variant="outline">
-                        {CLASS_LABELS[m.character_class]}
+                        {classLabel(m.character_class)}
                       </Badge>
                     ) : (
                       "-"
@@ -383,7 +433,17 @@ function MemberForm({
   const [isAwakened, setIsAwakened] = useState(
     member?.is_awakened ?? false
   );
+  const [classDefs, setClassDefs] = useState<CharacterClassDef[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("character_classes")
+      .select("*")
+      .eq("guild_id", GUILD_ID_PLACEHOLDER)
+      .order("sort_order")
+      .then(({ data }) => setClassDefs(data ?? []));
+  }, [supabase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -437,17 +497,17 @@ function MemberForm({
         <Select value={charClass} onValueChange={(v) => setCharClass(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="선택">
-              {charClass ? CLASS_LABELS[charClass as CharacterClass] ?? charClass : "선택"}
+              {charClass
+                ? classDefs.find((c) => c.code === charClass)?.label
+                  ?? CLASS_LABELS[charClass as CharacterClass]
+                  ?? charClass
+                : "선택"}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="archer">활</SelectItem>
-            <SelectItem value="healer">힐러</SelectItem>
-            <SelectItem value="swordsman">쌍검</SelectItem>
-            <SelectItem value="lancer">창</SelectItem>
-            <SelectItem value="gunner">화포</SelectItem>
-            <SelectItem value="rapier">레이피어</SelectItem>
-            <SelectItem value="sword">한손검</SelectItem>
+            {classDefs.map((c) => (
+              <SelectItem key={c.id} value={c.code}>{c.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { Lottery, Profile, DiamondDistribution } from "@/types";
+import type { Lottery, Profile, DiamondDistribution, GuildEvent, ContentType, Attendance, AttendanceStatus } from "@/types";
+import { CONTENT_TYPE_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -21,10 +22,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Ticket, Plus, Trash2, Diamond } from "lucide-react";
+import { Ticket, Plus, Trash2, Diamond, CalendarCheck } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -251,6 +259,7 @@ function DiamondForm({ onSaved }: { onSaved: () => void }) {
   const [members, setMembers] = useState<Profile[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     supabase
@@ -341,11 +350,21 @@ function DiamondForm({ onSaved }: { onSaved: () => void }) {
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <Label>수령자 ({count}명 선택)</Label>
-          <button type="button" onClick={toggleAll} className="text-xs text-primary underline">
-            {selectedIds.size === members.length ? "전체해제" : "전체선택"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="text-xs text-primary inline-flex items-center gap-1 hover:underline"
+            >
+              <CalendarCheck className="h-3 w-3" />
+              참석에서 가져오기
+            </button>
+            <button type="button" onClick={toggleAll} className="text-xs text-primary underline">
+              {selectedIds.size === members.length ? "전체해제" : "전체선택"}
+            </button>
+          </div>
         </div>
         <div className="border rounded-md max-h-48 overflow-y-auto divide-y">
           {members.map((m) => (
@@ -362,6 +381,15 @@ function DiamondForm({ onSaved }: { onSaved: () => void }) {
         </div>
       </div>
 
+      <ImportAttendanceDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImport={(ids) => {
+          setSelectedIds(new Set(ids));
+          setImportOpen(false);
+        }}
+      />
+
       {count > 0 && total > 0 && (
         <div className="rounded-md bg-muted px-4 py-2 text-sm">
           1인당 <strong>{perPerson.toLocaleString()}</strong> 다이아
@@ -373,5 +401,184 @@ function DiamondForm({ onSaved }: { onSaved: () => void }) {
         {saving ? "저장 중..." : "분배 등록"}
       </Button>
     </form>
+  );
+}
+
+// ==================== Import Attendance Dialog ====================
+const CONTENT_TYPE_OPTIONS: ContentType[] = [
+  "guild_dungeon",
+  "guild_war",
+  "crusade",
+  "boss_raid",
+  "ice_dungeon",
+  "faction_war",
+];
+
+function ImportAttendanceDialog({
+  open,
+  onOpenChange,
+  onImport,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onImport: (profileIds: string[]) => void;
+}) {
+  const [supabase] = useState(() => createClient());
+  const [contentType, setContentType] = useState<ContentType>("guild_dungeon");
+  const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [includeAfk, setIncludeAfk] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState<{
+    events: GuildEvent[];
+    qualified: { id: string; nickname: string }[];
+  } | null>(null);
+
+  const loadPreview = useCallback(async () => {
+    setLoading(true);
+    setPreview(null);
+
+    const start = `${date}T00:00:00`;
+    const end = `${date}T23:59:59`;
+
+    const { data: events } = await supabase
+      .from("events")
+      .select("*")
+      .eq("content_type", contentType)
+      .gte("scheduled_at", start)
+      .lt("scheduled_at", end);
+
+    const evs = (events ?? []) as GuildEvent[];
+    if (evs.length === 0) {
+      setPreview({ events: [], qualified: [] });
+      setLoading(false);
+      return;
+    }
+
+    const eventIds = evs.map((e) => e.id);
+    const [{ data: atts }, { data: profs }] = await Promise.all([
+      supabase.from("attendances").select("*").in("event_id", eventIds),
+      supabase.from("profiles").select("id, nickname").eq("is_active", true),
+    ]);
+
+    const allowed: AttendanceStatus[] = includeAfk
+      ? ["present", "afk"]
+      : ["present"];
+
+    // For each profile: must be in `allowed` for ALL events of that day
+    const profiles = (profs ?? []) as { id: string; nickname: string }[];
+    const attendanceMap = new Map<string, Map<string, string>>();
+    eventIds.forEach((id) => attendanceMap.set(id, new Map()));
+    (atts ?? []).forEach((a: Attendance) => {
+      attendanceMap.get(a.event_id)?.set(a.profile_id, a.status);
+    });
+
+    const qualified = profiles.filter((p) =>
+      eventIds.every((eid) => {
+        const status = attendanceMap.get(eid)?.get(p.id);
+        return status && allowed.includes(status as AttendanceStatus);
+      })
+    );
+
+    setPreview({ events: evs, qualified });
+    setLoading(false);
+  }, [supabase, contentType, date, includeAfk]);
+
+  // Auto-load when filters change while dialog is open
+  useEffect(() => {
+    if (open) loadPreview();
+  }, [open, loadPreview]);
+
+  const handleImport = () => {
+    if (!preview || preview.qualified.length === 0) {
+      toast.error("가져올 인원이 없습니다.");
+      return;
+    }
+    onImport(preview.qualified.map((q) => q.id));
+    toast.success(`${preview.qualified.length}명 선택됨`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>참석에서 인원 가져오기</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>컨텐츠 종류</Label>
+            <Select
+              value={contentType}
+              onValueChange={(v) => v && setContentType(v as ContentType)}
+            >
+              <SelectTrigger>
+                <SelectValue>{CONTENT_TYPE_LABELS[contentType]}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {CONTENT_TYPE_OPTIONS.map((ct) => (
+                  <SelectItem key={ct} value={ct}>
+                    {CONTENT_TYPE_LABELS[ct]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>날짜</Label>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeAfk}
+              onChange={(e) => setIncludeAfk(e.target.checked)}
+              className="rounded"
+            />
+            잠수도 포함
+          </label>
+
+          <div className="rounded-md border p-3 text-sm space-y-1 bg-muted/30">
+            {loading ? (
+              <p className="text-muted-foreground">불러오는 중...</p>
+            ) : !preview ? null : preview.events.length === 0 ? (
+              <p className="text-muted-foreground">
+                해당 날짜의 {CONTENT_TYPE_LABELS[contentType]} 이벤트가 없습니다.
+              </p>
+            ) : (
+              <>
+                <p>
+                  대상 이벤트: <strong>{preview.events.length}개</strong>
+                  {contentType === "guild_dungeon" && preview.events.length > 1 && (
+                    <span className="text-xs text-muted-foreground ml-1">
+                      (모두 참석한 멤버만)
+                    </span>
+                  )}
+                </p>
+                <p>
+                  완전 참석자: <strong>{preview.qualified.length}명</strong>
+                </p>
+                {preview.qualified.length > 0 && (
+                  <p className="text-xs text-muted-foreground line-clamp-2">
+                    {preview.qualified.map((q) => q.nickname).join(", ")}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            className="w-full"
+            disabled={loading || !preview || preview.qualified.length === 0}
+            onClick={handleImport}
+          >
+            {preview?.qualified.length ?? 0}명 선택
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

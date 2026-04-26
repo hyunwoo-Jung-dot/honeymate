@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { ItemRegistry, ItemCategory, BossRegistry, ContentType } from "@/types";
+import type { ItemRegistry, ItemCategory, BossRegistry, ContentType, CharacterClassDef } from "@/types";
 import { ITEM_GRADES, ITEM_GRADE_COLORS, CONTENT_TYPE_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Search, Package, Skull, Tag, KeyRound, Lock } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, Skull, Tag, KeyRound, Lock, Swords } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -60,12 +60,14 @@ export default function ManagementPage() {
           <TabsTrigger value="items"><Package className="h-4 w-4 mr-1" />아이템</TabsTrigger>
           <TabsTrigger value="categories"><Tag className="h-4 w-4 mr-1" />카테고리</TabsTrigger>
           <TabsTrigger value="bosses"><Skull className="h-4 w-4 mr-1" />보스</TabsTrigger>
+          <TabsTrigger value="classes"><Swords className="h-4 w-4 mr-1" />직업</TabsTrigger>
           <TabsTrigger value="account"><KeyRound className="h-4 w-4 mr-1" />계정</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === "items" ? <ItemsTab />
         : tab === "categories" ? <CategoriesTab />
         : tab === "bosses" ? <BossesTab />
+        : tab === "classes" ? <ClassesTab />
         : <AccountTab />}
     </div>
   );
@@ -442,6 +444,7 @@ function BossesTab() {
   const { isAdmin } = useAuth();
   const [bosses, setBosses] = useState<BossRegistry[]>([]);
   const [search, setSearch] = useState("");
+  const [contentFilter, setContentFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBoss, setEditingBoss] = useState<BossRegistry | null>(null);
@@ -456,7 +459,11 @@ function BossesTab() {
 
   useEffect(() => { fetchBosses(); }, [fetchBosses]);
 
-  const filtered = bosses.filter((b) => b.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = bosses.filter((b) => {
+    if (!b.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (contentFilter !== "all" && b.content_type !== contentFilter) return false;
+    return true;
+  });
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`"${name}" 보스를 삭제하시겠습니까?`)) return;
@@ -467,11 +474,29 @@ function BossesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="relative flex-1">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="보스 검색..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
+        <Select value={contentFilter} onValueChange={(v) => setContentFilter(v ?? "all")}>
+          <SelectTrigger className="w-36">
+            <SelectValue>
+              {contentFilter === "all"
+                ? "전체 컨텐츠"
+                : CONTENT_TYPE_LABELS[contentFilter as ContentType] ?? contentFilter}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 컨텐츠</SelectItem>
+            <SelectItem value="guild_dungeon">{CONTENT_TYPE_LABELS.guild_dungeon}</SelectItem>
+            <SelectItem value="guild_war">{CONTENT_TYPE_LABELS.guild_war}</SelectItem>
+            <SelectItem value="crusade">{CONTENT_TYPE_LABELS.crusade}</SelectItem>
+            <SelectItem value="boss_raid">{CONTENT_TYPE_LABELS.boss_raid}</SelectItem>
+            <SelectItem value="ice_dungeon">{CONTENT_TYPE_LABELS.ice_dungeon}</SelectItem>
+            <SelectItem value="faction_war">{CONTENT_TYPE_LABELS.faction_war}</SelectItem>
+          </SelectContent>
+        </Select>
         <AdminGuard>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingBoss(null); }}>
             <DialogTrigger>
@@ -580,6 +605,162 @@ function BossForm({ boss, onSaved }: { boss: BossRegistry | null; onSaved: () =>
       </div>
       <Button type="submit" className="w-full" disabled={saving}>
         {saving ? "저장 중..." : boss ? "수정" : "추가"}
+      </Button>
+    </form>
+  );
+}
+
+// ==================== Classes Tab ====================
+function ClassesTab() {
+  const [supabase] = useState(() => createClient());
+  const [classes, setClasses] = useState<CharacterClassDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<CharacterClassDef | null>(null);
+
+  const fetchClasses = useCallback(async () => {
+    const { data } = await supabase
+      .from("character_classes")
+      .select("*")
+      .eq("guild_id", GUILD_ID)
+      .order("sort_order");
+    setClasses(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { fetchClasses(); }, [fetchClasses]);
+
+  const handleDelete = async (id: string, label: string) => {
+    if (!confirm(`"${label}" 직업을 삭제하시겠습니까?\n해당 직업의 길드원은 직업이 비워집니다.`)) return;
+
+    // First, look up code, then null out profiles
+    const target = classes.find((c) => c.id === id);
+    if (target) {
+      await supabase
+        .from("profiles")
+        .update({ character_class: null })
+        .eq("character_class", target.code);
+    }
+
+    const { error } = await supabase.from("character_classes").delete().eq("id", id);
+    if (error) toast.error("삭제 실패: " + error.message);
+    else { toast.success("삭제됨 (길드원 직업 비워짐)"); fetchClasses(); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(null); }}>
+          <DialogTrigger>
+            <Button size="sm"><Plus className="h-4 w-4 mr-1" />추가</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editing ? "직업 수정" : "직업 추가"}</DialogTitle>
+            </DialogHeader>
+            <ClassForm
+              cls={editing}
+              onSaved={() => { setDialogOpen(false); setEditing(null); fetchClasses(); }}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">로딩 중...</CardContent></Card>
+      ) : classes.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">등록된 직업이 없습니다.</CardContent></Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">순서</TableHead>
+                <TableHead>코드</TableHead>
+                <TableHead>이름</TableHead>
+                <TableHead className="w-24">관리</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {classes.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-mono text-xs">{c.sort_order}</TableCell>
+                  <TableCell className="font-mono text-xs">{c.code}</TableCell>
+                  <TableCell className="font-medium">{c.label}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => { setEditing(c); setDialogOpen(true); }}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"
+                        onClick={() => handleDelete(c.id, c.label)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function ClassForm({ cls, onSaved }: { cls: CharacterClassDef | null; onSaved: () => void }) {
+  const [supabase] = useState(() => createClient());
+  const [code, setCode] = useState(cls?.code ?? "");
+  const [label, setLabel] = useState(cls?.label ?? "");
+  const [sortOrder, setSortOrder] = useState(cls?.sort_order?.toString() ?? "0");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!code.trim() || !label.trim()) {
+      toast.error("코드와 이름을 입력하세요");
+      return;
+    }
+    setSaving(true);
+    const data = {
+      code: code.trim(),
+      label: label.trim(),
+      sort_order: parseInt(sortOrder) || 0,
+      guild_id: GUILD_ID,
+    };
+    if (cls) {
+      const { error } = await supabase.from("character_classes").update(data).eq("id", cls.id);
+      if (error) toast.error("수정 실패: " + error.message);
+      else toast.success("수정됨");
+    } else {
+      const { error } = await supabase.from("character_classes").insert(data);
+      if (error) toast.error("추가 실패: " + error.message);
+      else toast.success("추가됨");
+    }
+    setSaving(false);
+    onSaved();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>코드 (영문 식별자) *</Label>
+        <Input value={code} onChange={(e) => setCode(e.target.value)}
+          placeholder="archer, healer, ..." required disabled={!!cls} />
+        {cls && <p className="text-xs text-muted-foreground">코드는 수정 불가</p>}
+      </div>
+      <div className="space-y-2">
+        <Label>이름 (한글 표시명) *</Label>
+        <Input value={label} onChange={(e) => setLabel(e.target.value)}
+          placeholder="활, 힐러, ..." required />
+      </div>
+      <div className="space-y-2">
+        <Label>정렬 순서</Label>
+        <Input type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+      </div>
+      <Button type="submit" className="w-full" disabled={saving}>
+        {saving ? "저장 중..." : cls ? "수정" : "추가"}
       </Button>
     </form>
   );

@@ -43,6 +43,16 @@ export interface Season {
   created_at: string;
 }
 
+export interface CharacterClassDef {
+  id: string;
+  guild_id: string;
+  code: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface Guild {
   id: string;
   name: string;
