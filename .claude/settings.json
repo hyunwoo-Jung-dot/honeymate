@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "set +e; cd /d/꿀메이트 || exit 0; if [ -n \"$(git status --porcelain 2>/dev/null)\" ]; then echo '{\"systemMessage\":\"[git auto] uncommitted changes — run git commit + push manually\"}'; exit 0; fi; unpushed=$(git rev-list @{u}..HEAD --count 2>/dev/null || echo 0); if [ \"$unpushed\" -gt 0 ]; then if git push origin master >/dev/null 2>&1; then echo \"{\\\"systemMessage\\\":\\\"[git auto] pushed $unpushed commits to origin/master\\\"}\"; else echo '{\"systemMessage\":\"[git auto] push failed — check network/credentials\"}'; fi; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
