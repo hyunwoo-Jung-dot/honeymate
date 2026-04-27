@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { ItemRegistry, ItemCategory, BossRegistry, ContentType, CharacterClassDef } from "@/types";
+import type { ItemRegistry, ItemCategory, BossRegistry, ContentType, CharacterClassDef, DistributionAsset, ContentScoringRule } from "@/types";
 import { ITEM_GRADES, ITEM_GRADE_COLORS, CONTENT_TYPE_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { Plus, Pencil, Trash2, Search, Package, Skull, Tag, KeyRound, Lock, Swords } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Package, Skull, Tag, KeyRound, Lock, Swords, Coins, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -56,11 +56,13 @@ export default function ManagementPage() {
         <p className="text-muted-foreground">아이템 가치 및 보스명 등록 (오타 방지)</p>
       </div>
       <Tabs value={tab} onValueChange={(v) => setTab(String(v ?? "items"))}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="items"><Package className="h-4 w-4 mr-1" />아이템</TabsTrigger>
           <TabsTrigger value="categories"><Tag className="h-4 w-4 mr-1" />카테고리</TabsTrigger>
           <TabsTrigger value="bosses"><Skull className="h-4 w-4 mr-1" />보스</TabsTrigger>
           <TabsTrigger value="classes"><Swords className="h-4 w-4 mr-1" />직업</TabsTrigger>
+          <TabsTrigger value="assets"><Coins className="h-4 w-4 mr-1" />자산</TabsTrigger>
+          <TabsTrigger value="scoring"><Calculator className="h-4 w-4 mr-1" />점수규칙</TabsTrigger>
           <TabsTrigger value="account"><KeyRound className="h-4 w-4 mr-1" />계정</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -68,6 +70,8 @@ export default function ManagementPage() {
         : tab === "categories" ? <CategoriesTab />
         : tab === "bosses" ? <BossesTab />
         : tab === "classes" ? <ClassesTab />
+        : tab === "assets" ? <AssetsTab />
+        : tab === "scoring" ? <ScoringRulesTab />
         : <AccountTab />}
     </div>
   );
@@ -760,6 +764,292 @@ function ClassForm({ cls, onSaved }: { cls: CharacterClassDef | null; onSaved: (
         {saving ? "저장 중..." : cls ? "수정" : "추가"}
       </Button>
     </form>
+  );
+}
+
+// ==================== Assets Tab ====================
+function AssetsTab() {
+  const [supabase] = useState(() => createClient());
+  const [assets, setAssets] = useState<DistributionAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<DistributionAsset | null>(null);
+
+  const fetchAssets = useCallback(async () => {
+    const { data } = await supabase
+      .from("distribution_assets")
+      .select("*")
+      .eq("guild_id", GUILD_ID)
+      .order("sort_order");
+    setAssets(data ?? []);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { fetchAssets(); }, [fetchAssets]);
+
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`"${name}" 자산을 삭제하시겠습니까?`)) return;
+    const { error } = await supabase.from("distribution_assets").delete().eq("id", id);
+    if (error) toast.error("삭제 실패: " + error.message);
+    else { toast.success("삭제됨"); fetchAssets(); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setEditing(null); }}>
+          <DialogTrigger>
+            <Button size="sm"><Plus className="h-4 w-4 mr-1" />추가</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editing ? "자산 수정" : "자산 추가"}</DialogTitle>
+            </DialogHeader>
+            <AssetForm
+              asset={editing}
+              onSaved={() => { setDialogOpen(false); setEditing(null); fetchAssets(); }}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">로딩 중...</CardContent></Card>
+      ) : assets.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">등록된 자산이 없습니다.</CardContent></Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">순서</TableHead>
+                <TableHead>이름</TableHead>
+                <TableHead className="w-24">단위</TableHead>
+                <TableHead className="w-20">상태</TableHead>
+                <TableHead className="w-24">관리</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {assets.map((a) => (
+                <TableRow key={a.id} className={!a.is_active ? "opacity-50" : ""}>
+                  <TableCell className="font-mono text-xs">{a.sort_order}</TableCell>
+                  <TableCell className="font-medium">{a.name}</TableCell>
+                  <TableCell>{a.unit ?? "-"}</TableCell>
+                  <TableCell>
+                    <Badge variant={a.is_active ? "default" : "outline"}>
+                      {a.is_active ? "활성" : "비활성"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7"
+                        onClick={() => { setEditing(a); setDialogOpen(true); }}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"
+                        onClick={() => handleDelete(a.id, a.name)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function AssetForm({ asset, onSaved }: { asset: DistributionAsset | null; onSaved: () => void }) {
+  const [supabase] = useState(() => createClient());
+  const [name, setName] = useState(asset?.name ?? "");
+  const [unit, setUnit] = useState(asset?.unit ?? "");
+  const [sortOrder, setSortOrder] = useState(asset?.sort_order?.toString() ?? "0");
+  const [isActive, setIsActive] = useState(asset?.is_active ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { toast.error("이름을 입력하세요"); return; }
+    setSaving(true);
+    const data = {
+      name: name.trim(),
+      unit: unit.trim() || null,
+      sort_order: parseInt(sortOrder) || 0,
+      is_active: isActive,
+      guild_id: GUILD_ID,
+    };
+    if (asset) {
+      const { error } = await supabase.from("distribution_assets").update(data).eq("id", asset.id);
+      if (error) toast.error("수정 실패: " + error.message);
+      else toast.success("수정됨");
+    } else {
+      const { error } = await supabase.from("distribution_assets").insert(data);
+      if (error) toast.error("추가 실패: " + error.message);
+      else toast.success("추가됨");
+    }
+    setSaving(false);
+    onSaved();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label>이름 *</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)}
+          placeholder="다이아, 길드주화..." required />
+      </div>
+      <div className="space-y-2">
+        <Label>단위 (표시용)</Label>
+        <Input value={unit} onChange={(e) => setUnit(e.target.value)}
+          placeholder="다이아, 주화, 개..." />
+      </div>
+      <div className="space-y-2">
+        <Label>정렬 순서</Label>
+        <Input type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+      </div>
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="rounded" />
+        활성 (분배에서 선택 가능)
+      </label>
+      <Button type="submit" className="w-full" disabled={saving}>
+        {saving ? "저장 중..." : asset ? "수정" : "추가"}
+      </Button>
+    </form>
+  );
+}
+
+// ==================== Scoring Rules Tab ====================
+const SCORING_CONTENT_TYPES: ContentType[] = [
+  "guild_dungeon", "guild_war", "crusade", "boss_raid", "ice_dungeon", "faction_war",
+];
+
+function ScoringRulesTab() {
+  const [supabase] = useState(() => createClient());
+  const [rules, setRules] = useState<Map<string, ContentScoringRule>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
+
+  const fetchRules = useCallback(async () => {
+    const { data } = await supabase
+      .from("content_scoring_rules")
+      .select("*")
+      .eq("guild_id", GUILD_ID);
+    const map = new Map<string, ContentScoringRule>();
+    (data ?? []).forEach((r: ContentScoringRule) => map.set(r.content_type, r));
+    setRules(map);
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => { fetchRules(); }, [fetchRules]);
+
+  const updateRule = async (
+    contentType: ContentType,
+    field: "present_score" | "afk_score" | "absent_score",
+    value: number
+  ) => {
+    setSavingKey(contentType);
+    const existing = rules.get(contentType);
+    const next = {
+      guild_id: GUILD_ID,
+      content_type: contentType,
+      present_score: existing?.present_score ?? 2,
+      afk_score: existing?.afk_score ?? 1,
+      absent_score: existing?.absent_score ?? 0,
+      [field]: value,
+    };
+    const { error } = await supabase
+      .from("content_scoring_rules")
+      .upsert(next, { onConflict: "guild_id,content_type" });
+    setSavingKey(null);
+    if (error) {
+      toast.error("저장 실패: " + error.message);
+    } else {
+      // Optimistic local update
+      const updated = new Map(rules);
+      updated.set(contentType, { ...next, updated_at: new Date().toISOString() } as ContentScoringRule);
+      setRules(updated);
+    }
+  };
+
+  if (loading) {
+    return <Card><CardContent className="py-10 text-center text-muted-foreground">로딩 중...</CardContent></Card>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="py-4">
+          <p className="text-xs text-muted-foreground">
+            컨텐츠별 출석 점수 규칙. 음수 입력하면 페널티(점수 깎임). 변경 즉시 통계 페이지의 기여도 점수에 반영됩니다.
+          </p>
+        </CardContent>
+      </Card>
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>컨텐츠</TableHead>
+              <TableHead className="w-28 text-center text-green-500">참석</TableHead>
+              <TableHead className="w-28 text-center text-yellow-500">잠수</TableHead>
+              <TableHead className="w-28 text-center text-red-500">불참</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {SCORING_CONTENT_TYPES.map((ct) => {
+              const r = rules.get(ct);
+              const presentVal = r?.present_score ?? 2;
+              const afkVal = r?.afk_score ?? 1;
+              const absentVal = r?.absent_score ?? 0;
+              const isSaving = savingKey === ct;
+              return (
+                <TableRow key={ct} className={isSaving ? "opacity-60" : ""}>
+                  <TableCell className="font-medium">{CONTENT_TYPE_LABELS[ct]}</TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      defaultValue={presentVal}
+                      className="h-8 text-center"
+                      onBlur={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (!isNaN(v) && v !== presentVal) updateRule(ct, "present_score", v);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      defaultValue={afkVal}
+                      className="h-8 text-center"
+                      onBlur={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (!isNaN(v) && v !== afkVal) updateRule(ct, "afk_score", v);
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      defaultValue={absentVal}
+                      className="h-8 text-center"
+                      onBlur={(e) => {
+                        const v = parseFloat(e.target.value);
+                        if (!isNaN(v) && v !== absentVal) updateRule(ct, "absent_score", v);
+                      }}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
   );
 }
 

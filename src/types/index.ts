@@ -53,6 +53,25 @@ export interface CharacterClassDef {
   created_at: string;
 }
 
+export interface DistributionAsset {
+  id: string;
+  guild_id: string;
+  name: string;
+  unit: string | null;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ContentScoringRule {
+  guild_id: string;
+  content_type: ContentType;
+  present_score: number;
+  afk_score: number;
+  absent_score: number;
+  updated_at: string;
+}
+
 export interface Guild {
   id: string;
   name: string;
