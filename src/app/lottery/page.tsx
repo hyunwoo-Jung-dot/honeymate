@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { Lottery, Profile, DiamondDistribution, GuildEvent, ContentType, Attendance, AttendanceStatus } from "@/types";
+import type { Lottery, Profile, DiamondDistribution, GuildEvent, ContentType, Attendance, AttendanceStatus, DistributionAsset } from "@/types";
 import { CONTENT_TYPE_LABELS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Ticket, Plus, Trash2, Diamond, CalendarCheck } from "lucide-react";
+import { Ticket, Plus, Trash2, Diamond, CalendarCheck, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -45,18 +45,20 @@ export default function LotteryListPage() {
   const { isAdmin } = useAuth();
   const [lotteries, setLotteries] = useState<Lottery[]>([]);
   const [diamonds, setDiamonds] = useState<DiamondDistribution[]>([]);
+  const [assets, setAssets] = useState<DistributionAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [diamondLoading, setDiamondLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const fetchLotteries = useCallback(async () => {
     try {
-      const { data } = await supabase
-        .from("lotteries")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      setLotteries(data ?? []);
+      const [lRes, aRes] = await Promise.all([
+        supabase.from("lotteries").select("*")
+          .order("created_at", { ascending: false }).limit(50),
+        supabase.from("distribution_assets").select("*"),
+      ]);
+      setLotteries(lRes.data ?? []);
+      setAssets(aRes.data ?? []);
     } catch { /* ignore */ }
     setLoading(false);
   }, [supabase]);
@@ -102,9 +104,10 @@ export default function LotteryListPage() {
       </div>
 
       <Tabs defaultValue="item">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="item">아이템 분배</TabsTrigger>
-          <TabsTrigger value="diamond">다이아 분배</TabsTrigger>
+          <TabsTrigger value="asset">자산 분배</TabsTrigger>
+          <TabsTrigger value="diamond">다이아 분배 (기존)</TabsTrigger>
         </TabsList>
 
         {/* 아이템 분배 탭 */}
@@ -124,16 +127,16 @@ export default function LotteryListPage() {
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">로딩 중...</CardContent>
             </Card>
-          ) : lotteries.length === 0 ? (
+          ) : lotteries.filter((l) => l.target_kind !== "asset").length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
                 <Ticket className="mx-auto h-10 w-10 mb-2 opacity-50" />
-                <p>아직 분배 기록이 없습니다.</p>
+                <p>아직 아이템 분배 기록이 없습니다.</p>
               </CardContent>
             </Card>
           ) : (
             <div className="grid gap-3">
-              {lotteries.map((lottery) => (
+              {lotteries.filter((l) => l.target_kind !== "asset").map((lottery) => (
                 <Link key={lottery.id} href={`/lottery/${lottery.id}`}>
                   <Card className="transition-colors hover:bg-accent/50 cursor-pointer">
                     <CardHeader className="pb-2">
@@ -173,6 +176,87 @@ export default function LotteryListPage() {
                   </Card>
                 </Link>
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* 자산 분배 탭 */}
+        <TabsContent value="asset" className="space-y-4 mt-4">
+          <div className="flex justify-end">
+            <AdminGuard>
+              <Link href="/lottery/asset/new">
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  새 자산 분배
+                </Button>
+              </Link>
+            </AdminGuard>
+          </div>
+
+          {loading ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">로딩 중...</CardContent>
+            </Card>
+          ) : lotteries.filter((l) => l.target_kind === "asset").length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground">
+                <Coins className="mx-auto h-10 w-10 mb-2 opacity-50" />
+                <p>아직 자산 분배 기록이 없습니다.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {lotteries.filter((l) => l.target_kind === "asset").map((lottery) => {
+                const asset = assets.find((a) => a.id === lottery.asset_id);
+                return (
+                  <Link key={lottery.id} href={`/lottery/${lottery.id}`}>
+                    <Card className="transition-colors hover:bg-accent/50 cursor-pointer">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            variant={
+                              lottery.status === "revealed" ? "default"
+                                : lottery.status === "committed" ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {lottery.status === "revealed" ? "완료"
+                              : lottery.status === "committed" ? "대기"
+                              : "준비"}
+                          </Badge>
+                          <Badge variant="outline" className="bg-purple-500/10">
+                            {asset?.name ?? "자산"}
+                          </Badge>
+                          <Badge variant="outline">
+                            {lottery.selection_mode === "all" ? "전원 균등"
+                              : lottery.selection_mode === "random_pick" ? "랜덤 추첨"
+                              : lottery.selection_mode === "weighted_pick" ? "가중 추첨"
+                              : lottery.selection_mode === "ranked" ? "순위 분배"
+                              : ""}
+                          </Badge>
+                        </div>
+                        <CardTitle className="text-base">{lottery.title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <CardDescription>
+                          참가자 {Array.isArray(lottery.participants) ? lottery.participants.length : 0}명 |
+                          총량 {lottery.total_amount?.toLocaleString() ?? "-"}
+                          {asset?.unit && ` ${asset.unit}`} |{" "}
+                          {format(new Date(lottery.created_at), "yyyy.MM.dd HH:mm", { locale: ko })}
+                        </CardDescription>
+                      </CardContent>
+                      {isAdmin && (
+                        <div className="px-4 pb-3 flex justify-end">
+                          <Button variant="ghost" size="sm" className="text-destructive h-7"
+                            onClick={(e) => handleDeleteLottery(e, lottery.id, lottery.title)}>
+                            <Trash2 className="h-3 w-3 mr-1" />삭제
+                          </Button>
+                        </div>
+                      )}
+                    </Card>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </TabsContent>

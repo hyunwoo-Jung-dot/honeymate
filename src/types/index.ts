@@ -16,6 +16,14 @@ export type LotteryType = "ladder" | "random_pick";
 
 export type LotteryStatus = "pending" | "committed" | "revealed";
 
+export type LotteryTargetKind = "asset" | "items";
+
+export type LotterySelectionMode =
+  | "all"
+  | "random_pick"
+  | "weighted_pick"
+  | "ranked";
+
 export type EventStatus = "scheduled" | "in_progress" | "completed";
 
 export type WeightMode = "equal" | "contribution" | "value_based";
@@ -169,7 +177,26 @@ export interface Lottery {
   healer_bonus_enabled: boolean;
   participant_weights: ParticipantWeight[] | null;
   item_values: LotteryItemValue[] | null;
+  // Phase B unified distribution
+  target_kind: LotteryTargetKind | null;
+  selection_mode: LotterySelectionMode | null;
+  asset_id: string | null;
+  total_amount: number | null;
+  recipient_count: number | null;
+  rank_ratios: number[] | null;
   created_by: string;
+  created_at: string;
+}
+
+export interface LotteryAllocation {
+  id: string;
+  lottery_id: string;
+  profile_id: string;
+  rank: number | null;
+  score: number | null;
+  amount: number | null;
+  item: string | null;
+  is_received: boolean;
   created_at: string;
 }
 

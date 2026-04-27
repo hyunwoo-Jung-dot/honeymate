@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminGuard } from "@/components/layout/AdminGuard";
-import type { Lottery, Profile, LotteryResult, ItemRegistry } from "@/types";
+import type { Lottery, Profile, LotteryResult, ItemRegistry, LotteryAllocation, DistributionAsset } from "@/types";
 import { ITEM_GRADE_TEXT_COLORS } from "@/lib/constants";
-import { revealResult, verifyCommit } from "@/lib/lottery";
+import { revealResult, verifyCommit, allocate } from "@/lib/lottery";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -51,6 +51,9 @@ export default function LotteryDetailPage() {
     new Map()
   );
   const [itemRegistry, setItemRegistry] = useState<Map<string, ItemRegistry>>(new Map());
+  const [allocations, setAllocations] = useState<LotteryAllocation[]>([]);
+  const [asset, setAsset] = useState<DistributionAsset | null>(null);
+  const [basisEventTitles, setBasisEventTitles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [revealing, setRevealing] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -58,7 +61,7 @@ export default function LotteryDetailPage() {
   const [animating, setAnimating] = useState(false);
 
   const fetchData = useCallback(async () => {
-    const [lotteryRes, profilesRes, itemsRes] = await Promise.all([
+    const [lotteryRes, profilesRes, itemsRes, allocRes] = await Promise.all([
       supabase
         .from("lotteries")
         .select("*")
@@ -72,9 +75,16 @@ export default function LotteryDetailPage() {
         .from("item_registry")
         .select("*")
         .eq("is_active", true),
+      supabase
+        .from("lottery_allocations")
+        .select("*")
+        .eq("lottery_id", lotteryId)
+        .order("rank", { ascending: true, nullsFirst: false }),
     ]);
 
-    setLottery(lotteryRes.data);
+    const lot = lotteryRes.data as Lottery | null;
+    setLottery(lot);
+    setAllocations(allocRes.data ?? []);
 
     const iMap = new Map<string, ItemRegistry>();
     (itemsRes.data ?? []).forEach((i: ItemRegistry) => iMap.set(i.name, i));
@@ -85,6 +95,26 @@ export default function LotteryDetailPage() {
       pMap.set(p.id, p)
     );
     setProfiles(pMap);
+
+    // For asset distributions: fetch asset + basis events
+    if (lot?.target_kind === "asset") {
+      if (lot.asset_id) {
+        const { data: a } = await supabase
+          .from("distribution_assets")
+          .select("*").eq("id", lot.asset_id).single();
+        setAsset(a);
+      }
+      const { data: be } = await supabase
+        .from("lottery_basis_events")
+        .select("event_id, events(title, scheduled_at)")
+        .eq("lottery_id", lotteryId);
+      type BasisRow = { event_id: string; events: { title: string; scheduled_at: string } | null };
+      const titles = (be as BasisRow[] | null ?? []).map((row) =>
+        row.events ? `${row.events.title}` : ""
+      ).filter(Boolean);
+      setBasisEventTitles(titles);
+    }
+
     setLoading(false);
   }, [supabase, lotteryId]);
 
@@ -100,6 +130,96 @@ export default function LotteryDetailPage() {
     // Animation delay
     await new Promise((r) => setTimeout(r, 2000));
 
+    if (lottery.target_kind === "asset") {
+      // Asset distribution path
+      try {
+        // Fetch contribution scores if needed
+        const needsScores =
+          lottery.selection_mode === "weighted_pick" ||
+          lottery.selection_mode === "ranked";
+        let scoreMap: Record<string, number> = {};
+
+        if (needsScores) {
+          const { data: basisRows } = await supabase
+            .from("lottery_basis_events")
+            .select("event_id")
+            .eq("lottery_id", lotteryId);
+          const eventIds = (basisRows ?? []).map((r: { event_id: string }) => r.event_id);
+          if (eventIds.length > 0) {
+            // Fetch attendances + scoring rules + events
+            const [{ data: atts }, { data: events }, { data: rules }] = await Promise.all([
+              supabase.from("attendances").select("*").in("event_id", eventIds),
+              supabase.from("events").select("id, content_type").in("id", eventIds),
+              supabase.from("content_scoring_rules").select("*"),
+            ]);
+            const eventTypeMap = new Map<string, string>();
+            (events ?? []).forEach((e: { id: string; content_type: string }) =>
+              eventTypeMap.set(e.id, e.content_type)
+            );
+            type Rule = { content_type: string; present_score: number; afk_score: number; absent_score: number };
+            const ruleMap = new Map<string, Rule>();
+            (rules ?? []).forEach((r: Rule) => ruleMap.set(r.content_type, r));
+            for (const a of (atts ?? [])) {
+              const ct = eventTypeMap.get(a.event_id);
+              if (!ct) continue;
+              const r = ruleMap.get(ct);
+              const score = a.status === "present" ? (r?.present_score ?? 2)
+                : a.status === "afk" ? (r?.afk_score ?? 1)
+                : (r?.absent_score ?? 0);
+              scoreMap[a.profile_id] = (scoreMap[a.profile_id] ?? 0) + score;
+            }
+          }
+        }
+
+        const result = await allocate({
+          targetKind: "asset",
+          selectionMode: lottery.selection_mode!,
+          participants: lottery.participants,
+          scores: scoreMap,
+          totalAmount: lottery.total_amount ?? 0,
+          recipientCount: lottery.recipient_count ?? undefined,
+          rankRatios: lottery.rank_ratios ?? undefined,
+          serverSecret: lottery.server_secret,
+          seedTimestamp: lottery.seed_timestamp,
+        });
+
+        // Save allocations
+        if (result.length > 0) {
+          const rows = result.map((r) => ({
+            lottery_id: lotteryId,
+            profile_id: r.profileId,
+            rank: r.rank ?? null,
+            score: r.score ?? null,
+            amount: r.amount ?? null,
+            item: null,
+          }));
+          const { error: allocErr } = await supabase
+            .from("lottery_allocations")
+            .insert(rows);
+          if (allocErr) throw new Error(allocErr.message);
+        }
+
+        const { error: updErr } = await supabase
+          .from("lotteries")
+          .update({
+            status: "revealed",
+            revealed_at: new Date().toISOString(),
+          })
+          .eq("id", lotteryId);
+        if (updErr) throw new Error(updErr.message);
+
+        toast.success("결과가 공개되었습니다!");
+        fetchData();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "오류";
+        toast.error("공개 실패: " + message);
+      }
+      setRevealing(false);
+      setAnimating(false);
+      return;
+    }
+
+    // Items target (legacy path)
     const result = await revealResult(
       {
         participants: lottery.participants,
@@ -129,6 +249,33 @@ export default function LotteryDetailPage() {
     }
     setRevealing(false);
     setAnimating(false);
+  };
+
+  const toggleReceived = async (allocId: string, current: boolean) => {
+    const { error } = await supabase
+      .from("lottery_allocations")
+      .update({ is_received: !current })
+      .eq("id", allocId);
+    if (error) toast.error("업데이트 실패");
+    else {
+      setAllocations((prev) => prev.map((a) =>
+        a.id === allocId ? { ...a, is_received: !current } : a
+      ));
+    }
+  };
+
+  const markAllReceived = async () => {
+    const ids = allocations.filter((a) => !a.is_received).map((a) => a.id);
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from("lottery_allocations")
+      .update({ is_received: true })
+      .in("id", ids);
+    if (error) toast.error("업데이트 실패");
+    else {
+      toast.success("전원 지급 완료 처리됨");
+      fetchData();
+    }
   };
 
   const handleVerify = async () => {
@@ -184,7 +331,7 @@ export default function LotteryDetailPage() {
       {/* Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge
               variant={
                 lottery.status === "revealed"
@@ -198,11 +345,23 @@ export default function LotteryDetailPage() {
                   ? "결과 대기"
                   : "준비 중"}
             </Badge>
-            <Badge variant="outline">
-              {lottery.type === "ladder"
-                ? "사다리타기"
-                : "랜덤"}
-            </Badge>
+            {lottery.target_kind === "asset" ? (
+              <>
+                <Badge variant="outline" className="bg-purple-500/10">
+                  {asset?.name ?? "자산"}
+                </Badge>
+                <Badge variant="outline">
+                  {lottery.selection_mode === "all" ? "전원 균등"
+                    : lottery.selection_mode === "random_pick" ? "랜덤 추첨"
+                    : lottery.selection_mode === "weighted_pick" ? "가중 추첨"
+                    : "순위 분배"}
+                </Badge>
+              </>
+            ) : (
+              <Badge variant="outline">
+                {lottery.type === "ladder" ? "사다리타기" : "랜덤"}
+              </Badge>
+            )}
           </div>
           <CardTitle>{lottery.title}</CardTitle>
           <CardDescription>
@@ -211,7 +370,18 @@ export default function LotteryDetailPage() {
               "yyyy.MM.dd HH:mm",
               { locale: ko }
             )}
+            {lottery.target_kind === "asset" && lottery.total_amount && (
+              <span className="ml-2">
+                | 총량: <strong>{lottery.total_amount.toLocaleString()}</strong>
+                {asset?.unit && ` ${asset.unit}`}
+              </span>
+            )}
           </CardDescription>
+          {basisEventTitles.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              기준 이벤트: {basisEventTitles.join(", ")}
+            </p>
+          )}
         </CardHeader>
       </Card>
 
@@ -243,7 +413,7 @@ export default function LotteryDetailPage() {
       </Card>
 
       {/* Participants & Items */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={`grid gap-4 ${lottery.target_kind === "asset" ? "" : "sm:grid-cols-2"}`}>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
@@ -260,22 +430,24 @@ export default function LotteryDetailPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              아이템 ({(lottery.items as string[])?.length ?? 0}개)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-1">
-              {(lottery.items as string[])?.map((item, i) => (
-                <Badge key={i} variant="secondary">
-                  {item}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {lottery.target_kind !== "asset" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                아이템 ({(lottery.items as string[])?.length ?? 0}개)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-1">
+                {(lottery.items as string[])?.map((item, i) => (
+                  <Badge key={i} variant="secondary">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Reveal Button */}
@@ -313,8 +485,92 @@ export default function LotteryDetailPage() {
         </AdminGuard>
       )}
 
-      {/* Results */}
-      {lottery.status === "revealed" && lottery.result && (
+      {/* Asset Results */}
+      {lottery.status === "revealed" && lottery.target_kind === "asset" && (
+        <Card className="border-green-500">
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-yellow-500" />
+                  분배 결과
+                </CardTitle>
+                {lottery.revealed_at && (
+                  <CardDescription>
+                    공개 시각: {format(new Date(lottery.revealed_at), "yyyy.MM.dd HH:mm:ss")}
+                  </CardDescription>
+                )}
+              </div>
+              {isAdmin && allocations.some((a) => !a.is_received) && (
+                <Button size="sm" onClick={markAllReceived}>
+                  전원 지급 완료
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          {allocations.length === 0 ? (
+            <CardContent className="text-center text-muted-foreground py-6">
+              할당 결과가 없습니다.
+            </CardContent>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">#</TableHead>
+                  <TableHead>닉네임</TableHead>
+                  {(lottery.selection_mode === "weighted_pick" ||
+                    lottery.selection_mode === "ranked") && (
+                    <TableHead className="w-20 text-right">점수</TableHead>
+                  )}
+                  <TableHead className="w-28 text-right">받을 양</TableHead>
+                  <TableHead className="w-28 text-center">지급</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allocations.map((a, i) => (
+                  <TableRow key={a.id} className={a.is_received ? "opacity-60" : ""}>
+                    <TableCell className="font-mono text-xs">
+                      {a.rank ?? i + 1}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {getNickname(a.profile_id)}
+                    </TableCell>
+                    {(lottery.selection_mode === "weighted_pick" ||
+                      lottery.selection_mode === "ranked") && (
+                      <TableCell className="text-right text-xs text-muted-foreground">
+                        {a.score?.toLocaleString() ?? "-"}
+                      </TableCell>
+                    )}
+                    <TableCell className="text-right font-bold">
+                      {a.amount?.toLocaleString() ?? "-"}
+                      {asset?.unit && <span className="text-xs text-muted-foreground ml-1">{asset.unit}</span>}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {isAdmin ? (
+                        <Button
+                          variant={a.is_received ? "default" : "outline"}
+                          size="sm"
+                          className="h-7"
+                          onClick={() => toggleReceived(a.id, a.is_received)}
+                        >
+                          {a.is_received ? "✓ 완료" : "미지급"}
+                        </Button>
+                      ) : (
+                        <Badge variant={a.is_received ? "default" : "outline"}>
+                          {a.is_received ? "완료" : "미지급"}
+                        </Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Card>
+      )}
+
+      {/* Items Results (legacy) */}
+      {lottery.status === "revealed" && lottery.target_kind !== "asset" && lottery.result && (
         <>
           <Card className="border-green-500">
             <CardHeader>

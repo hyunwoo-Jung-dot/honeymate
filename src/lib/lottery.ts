@@ -156,3 +156,195 @@ export async function verifyCommit(
   const computed = await sha256(payload);
   return computed === commitHash;
 }
+
+// ====================================================================
+// Phase B: Unified distribution allocator
+// ====================================================================
+
+import type {
+  LotteryTargetKind,
+  LotterySelectionMode,
+} from "@/types";
+
+export interface AllocationInput {
+  targetKind: LotteryTargetKind;
+  selectionMode: LotterySelectionMode;
+  participants: string[]; // profile IDs
+  scores?: Record<string, number>; // profileId -> score (weighted/ranked)
+  items?: string[]; // for items target
+  totalAmount?: number; // for asset target
+  recipientCount?: number; // random_pick / weighted_pick
+  rankRatios?: number[]; // asset + ranked: e.g. [50, 30, 20]
+  serverSecret: string;
+  seedTimestamp: string;
+}
+
+export interface Allocation {
+  profileId: string;
+  rank?: number;
+  score?: number;
+  amount?: number;
+  item?: string;
+}
+
+async function makeSeededRng(serverSecret: string, seedTimestamp: string) {
+  const seedHash = await sha256(serverSecret + seedTimestamp);
+  let state = BigInt("0x" + seedHash.slice(0, 16));
+  return () => {
+    state =
+      (state * 6364136223846793005n + 1442695040888963407n) %
+      (2n ** 64n);
+    return Number(state % 1000000n) / 1000000;
+  };
+}
+
+function shuffle<T>(arr: T[], rng: () => number): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function weightedSampleWithoutReplacement(
+  pool: { id: string; weight: number }[],
+  count: number,
+  rng: () => number
+): string[] {
+  const work = pool.map((p) => ({ ...p }));
+  const picked: string[] = [];
+  const n = Math.min(count, work.length);
+  for (let k = 0; k < n; k++) {
+    const total = work.reduce(
+      (s, p) => s + Math.max(0, p.weight),
+      0
+    );
+    if (total <= 0) {
+      // All zero/negative weights → fall back to uniform
+      const idx = Math.floor(rng() * work.length);
+      picked.push(work[idx].id);
+      work.splice(idx, 1);
+      continue;
+    }
+    const target = rng() * total;
+    let cum = 0;
+    let selectedIdx = work.length - 1;
+    for (let i = 0; i < work.length; i++) {
+      cum += Math.max(0, work[i].weight);
+      if (cum >= target) {
+        selectedIdx = i;
+        break;
+      }
+    }
+    picked.push(work[selectedIdx].id);
+    work.splice(selectedIdx, 1);
+  }
+  return picked;
+}
+
+export async function allocate(input: AllocationInput): Promise<Allocation[]> {
+  const rng = await makeSeededRng(
+    input.serverSecret,
+    input.seedTimestamp
+  );
+
+  // Sort participants for determinism (regardless of input order)
+  const participants = [...input.participants].sort();
+  const scoreOf = (id: string) => input.scores?.[id] ?? 0;
+
+  if (input.targetKind === "asset") {
+    const total = input.totalAmount ?? 0;
+
+    if (input.selectionMode === "all") {
+      const n = participants.length;
+      if (n === 0) return [];
+      const each = Math.floor(total / n);
+      return participants.map((id) => ({ profileId: id, amount: each }));
+    }
+
+    if (input.selectionMode === "random_pick") {
+      const N = Math.min(input.recipientCount ?? 0, participants.length);
+      if (N === 0) return [];
+      const picked = shuffle(participants, rng).slice(0, N);
+      const each = Math.floor(total / N);
+      return picked.map((id) => ({ profileId: id, amount: each }));
+    }
+
+    if (input.selectionMode === "weighted_pick") {
+      const N = Math.min(input.recipientCount ?? 0, participants.length);
+      if (N === 0) return [];
+      const pool = participants.map((id) => ({ id, weight: scoreOf(id) }));
+      const picked = weightedSampleWithoutReplacement(pool, N, rng);
+      const each = Math.floor(total / N);
+      return picked.map((id) => ({
+        profileId: id,
+        amount: each,
+        score: scoreOf(id),
+      }));
+    }
+
+    if (input.selectionMode === "ranked") {
+      const ratios = input.rankRatios ?? [];
+      const ranked = [...participants].sort(
+        (a, b) => scoreOf(b) - scoreOf(a)
+      );
+      const N = Math.min(ratios.length, ranked.length);
+      const ratioSum = ratios.slice(0, N).reduce((s, r) => s + r, 0);
+      const out: Allocation[] = [];
+      for (let i = 0; i < N; i++) {
+        const id = ranked[i];
+        const amount = Math.floor((total * ratios[i]) / (ratioSum || 100));
+        out.push({
+          profileId: id,
+          rank: i + 1,
+          score: scoreOf(id),
+          amount,
+        });
+      }
+      return out;
+    }
+  }
+
+  if (input.targetKind === "items") {
+    const items = input.items ?? [];
+    const K = items.length;
+    if (K === 0) return [];
+
+    if (input.selectionMode === "random_pick") {
+      const shuffled = shuffle(participants, rng);
+      const n = Math.min(K, shuffled.length);
+      return Array.from({ length: n }, (_, i) => ({
+        profileId: shuffled[i],
+        item: items[i],
+        rank: i + 1,
+      }));
+    }
+
+    if (input.selectionMode === "weighted_pick") {
+      const pool = participants.map((id) => ({ id, weight: scoreOf(id) }));
+      const picked = weightedSampleWithoutReplacement(pool, K, rng);
+      return picked.map((id, i) => ({
+        profileId: id,
+        item: items[i],
+        rank: i + 1,
+        score: scoreOf(id),
+      }));
+    }
+
+    if (input.selectionMode === "ranked") {
+      const ranked = [...participants].sort(
+        (a, b) => scoreOf(b) - scoreOf(a)
+      );
+      const n = Math.min(K, ranked.length);
+      return Array.from({ length: n }, (_, i) => ({
+        profileId: ranked[i],
+        item: items[i],
+        rank: i + 1,
+        score: scoreOf(ranked[i]),
+      }));
+    }
+  }
+
+  return [];
+}
