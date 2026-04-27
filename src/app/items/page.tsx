@@ -676,7 +676,6 @@ function ClassesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16">순서</TableHead>
-                <TableHead>코드</TableHead>
                 <TableHead>이름</TableHead>
                 <TableHead className="w-24">관리</TableHead>
               </TableRow>
@@ -685,7 +684,6 @@ function ClassesTab() {
               {classes.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-mono text-xs">{c.sort_order}</TableCell>
-                  <TableCell className="font-mono text-xs">{c.code}</TableCell>
                   <TableCell className="font-medium">{c.label}</TableCell>
                   <TableCell>
                     <div className="flex gap-1">
@@ -711,30 +709,35 @@ function ClassesTab() {
 
 function ClassForm({ cls, onSaved }: { cls: CharacterClassDef | null; onSaved: () => void }) {
   const [supabase] = useState(() => createClient());
-  const [code, setCode] = useState(cls?.code ?? "");
   const [label, setLabel] = useState(cls?.label ?? "");
   const [sortOrder, setSortOrder] = useState(cls?.sort_order?.toString() ?? "0");
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim() || !label.trim()) {
-      toast.error("코드와 이름을 입력하세요");
+    if (!label.trim()) {
+      toast.error("이름을 입력하세요");
       return;
     }
     setSaving(true);
-    const data = {
-      code: code.trim(),
-      label: label.trim(),
-      sort_order: parseInt(sortOrder) || 0,
-      guild_id: GUILD_ID,
-    };
     if (cls) {
-      const { error } = await supabase.from("character_classes").update(data).eq("id", cls.id);
+      const { error } = await supabase
+        .from("character_classes")
+        .update({
+          label: label.trim(),
+          sort_order: parseInt(sortOrder) || 0,
+        })
+        .eq("id", cls.id);
       if (error) toast.error("수정 실패: " + error.message);
       else toast.success("수정됨");
     } else {
-      const { error } = await supabase.from("character_classes").insert(data);
+      const code = `cls_${crypto.randomUUID().slice(0, 8)}`;
+      const { error } = await supabase.from("character_classes").insert({
+        code,
+        label: label.trim(),
+        sort_order: parseInt(sortOrder) || 0,
+        guild_id: GUILD_ID,
+      });
       if (error) toast.error("추가 실패: " + error.message);
       else toast.success("추가됨");
     }
@@ -745,13 +748,7 @@ function ClassForm({ cls, onSaved }: { cls: CharacterClassDef | null; onSaved: (
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label>코드 (영문 식별자) *</Label>
-        <Input value={code} onChange={(e) => setCode(e.target.value)}
-          placeholder="archer, healer, ..." required disabled={!!cls} />
-        {cls && <p className="text-xs text-muted-foreground">코드는 수정 불가</p>}
-      </div>
-      <div className="space-y-2">
-        <Label>이름 (한글 표시명) *</Label>
+        <Label>이름 *</Label>
         <Input value={label} onChange={(e) => setLabel(e.target.value)}
           placeholder="활, 힐러, ..." required />
       </div>
