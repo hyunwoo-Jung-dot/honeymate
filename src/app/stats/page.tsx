@@ -12,7 +12,6 @@ import {
   CLASS_LABELS,
 } from "@/lib/constants";
 import { useSeason } from "@/hooks/useSeason";
-import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,7 +40,6 @@ export default function StatsPage() {
   // Tab: "attendance" or "contribution"
   const [mainTab, setMainTab] = useState("contribution");
   const [filter, setFilter] = useState<string>("all");
-  const [cutline, setCutline] = useState([0]);
   const [loading, setLoading] = useState(true);
 
   // Attendance data
@@ -230,38 +228,6 @@ export default function StatsPage() {
         </TabsList>
       </Tabs>
 
-      {/* Cutline */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            컷라인 시뮬레이터
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-between text-sm">
-            <span>
-              {mainTab === "contribution"
-                ? "최소 기여도 점수"
-                : "최소 참석률"}
-            </span>
-            <span className="font-bold text-primary">
-              {cutline[0]}
-              {mainTab === "attendance" ? "%" : "점"}
-            </span>
-          </div>
-          <Slider
-            value={cutline}
-            onValueChange={(v) =>
-              setCutline(Array.isArray(v) ? [...v] : [v])
-            }
-            min={0}
-            max={mainTab === "contribution" ? 100 : 100}
-            step={mainTab === "contribution" ? 1 : 5}
-          />
-        </CardContent>
-      </Card>
-
       <Separator />
 
       {/* Content */}
@@ -314,17 +280,8 @@ export default function StatsPage() {
               </TableHeader>
               <TableBody>
                 {contribAgg.map((c, i) => {
-                  const isAbove =
-                    c.totalScore >= cutline[0];
                   return (
-                    <TableRow
-                      key={c.profile_id}
-                      className={
-                        cutline[0] > 0 && !isAbove
-                          ? "opacity-40"
-                          : ""
-                      }
-                    >
+                    <TableRow key={c.profile_id}>
                       <TableCell className="font-bold text-muted-foreground">
                         {i + 1}
                       </TableCell>
@@ -411,17 +368,8 @@ export default function StatsPage() {
             </TableHeader>
             <TableBody>
               {aggregatedRates.map((r) => {
-                const isAbove =
-                  r.attendance_rate >= cutline[0];
                 return (
-                  <TableRow
-                    key={`${r.profile_id}-${r.content_type}`}
-                    className={
-                      cutline[0] > 0 && !isAbove
-                        ? "opacity-40"
-                        : ""
-                    }
-                  >
+                  <TableRow key={`${r.profile_id}-${r.content_type}`}>
                     <TableCell className="font-medium">
                       {r.nickname}
                     </TableCell>
