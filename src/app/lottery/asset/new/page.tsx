@@ -33,10 +33,10 @@ import Link from "next/link";
 const GUILD_ID = "00000000-0000-0000-0000-000000000001";
 
 const SELECTION_MODE_LABELS: Record<LotterySelectionMode, string> = {
-  all: "전원 균등 분배",
-  random_pick: "N명 랜덤 추첨 → 균등",
-  weighted_pick: "기여도 가중 추첨 → 균등",
-  ranked: "기여도 순위 + 등수별 비율",
+  all: "전원 균등",
+  random_pick: "랜덤 추첨 (균등)",
+  weighted_pick: "가중 추첨 (균등)",
+  ranked: "순위 분배 (등수별 %)",
 };
 
 const CONTENT_TYPE_OPTIONS: ContentType[] = [
@@ -257,13 +257,19 @@ export default function NewAssetDistributionPage() {
             <Label>방식 *</Label>
             <Select value={mode} onValueChange={(v) => v && setMode(v as LotterySelectionMode)}>
               <SelectTrigger><SelectValue>{SELECTION_MODE_LABELS[mode]}</SelectValue></SelectTrigger>
-              <SelectContent>
+              <SelectContent className="min-w-[260px]">
                 <SelectItem value="all">{SELECTION_MODE_LABELS.all}</SelectItem>
                 <SelectItem value="random_pick">{SELECTION_MODE_LABELS.random_pick}</SelectItem>
                 <SelectItem value="weighted_pick">{SELECTION_MODE_LABELS.weighted_pick}</SelectItem>
                 <SelectItem value="ranked">{SELECTION_MODE_LABELS.ranked}</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {mode === "all" && "참가자 전원에게 총량을 균등하게 나눔"}
+              {mode === "random_pick" && "참가자 중 N명을 랜덤으로 뽑아 균등 분배"}
+              {mode === "weighted_pick" && "기여도 점수가 높을수록 추첨 확률 증가, 뽑힌 N명에 균등"}
+              {mode === "ranked" && "기여도 점수 순으로 1등부터 줄세워서 등수별 비율로 분배"}
+            </p>
           </div>
 
           {needsRecipientCount && (
